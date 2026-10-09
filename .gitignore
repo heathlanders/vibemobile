@@ -1,0 +1,16 @@
+# Node daemon
+vibe-daemon/node_modules/
+vibe-daemon/daemon.log
+
+# Runtime SQLite DB (device token hashes, sessions — never commit)
+vibe-daemon/vibe.db
+vibe-daemon/vibe.db-shm
+vibe-daemon/vibe.db-wal
+
+# Claude local settings (docs-map.md IS tracked; local perms are not)
+.claude/settings.local.json
+
+# OS
+.DS_Store
+
+# The Flutter app/ tree has its own .gitignore (build/, .dart_tool/, etc.)

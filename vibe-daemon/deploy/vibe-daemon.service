@@ -1,0 +1,38 @@
+# vibe-daemon systemd unit (PLAN §2B, §5). Runs the daemon as `boss`, bound to
+# localhost only — `tailscale serve` is the sole ingress (ADR 0005). Install by hand;
+# see deploy/README.md. Do not auto-enable from application code.
+
+[Unit]
+Description=VibeMobile daemon (Claude Code + PTY sessions)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=boss
+WorkingDirectory=/home/user/vibemobile/vibe-daemon
+Environment=PORT=8787
+# Override the project roots the scanner walks (comma-separated) if needed:
+# Environment=VIBE_PROJECT_ROOTS=/home/user
+# Model picker (ADR 0007): the list AUTO-UPDATES from the live Anthropic Models API
+# in the default (no-gateway) mode — new releases appear with no edit here. Set
+# VIBE_GATEWAY_MODELS only to override a label/provider or add a gateway/custom
+# model (JSON [{id,label,provider}]; same id overrides, new id is appended). In
+# gateway mode (VIBE_GATEWAY_URL set) this list is authoritative and drives routing.
+# Environment=VIBE_GATEWAY_MODELS=[{"id":"claude-opus-4-7","label":"Opus 4.7","provider":"anthropic"}]
+ExecStart=/usr/bin/npm start
+Restart=on-failure
+RestartSec=2
+
+# Resource guardrails (32GB → actually 15GB host, shared with docker/postgres).
+# Cap the whole daemon cgroup (node + spawned claude SDK subprocesses, ≈hundreds
+# of MB each). MemoryHigh throttles before MemoryMax hard-kills. OOMScoreAdjust
+# >0 makes the daemon the kernel's preferred OOM victim over docker/postgres.
+# Tune via the session caps (VIBE_MAX_CLAUDE/VIBE_MAX_TERMINAL) too — see sessions.ts.
+MemoryHigh=2G
+MemoryMax=3G
+TasksMax=256
+OOMScoreAdjust=500
+
+[Install]
+WantedBy=multi-user.target

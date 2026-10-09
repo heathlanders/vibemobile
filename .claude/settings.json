@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(systemctl status *)",
+      "Bash(systemctl --user status *)",
+      "Bash(journalctl *)",
+      "Bash(tailscale status *)",
+      "Bash(docker ps *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          { "type": "command", "command": "bash .claude/design-guard.sh" }
+        ]
+      }
+    ]
+  }
+}
