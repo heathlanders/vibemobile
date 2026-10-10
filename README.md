@@ -119,6 +119,10 @@ flutter build apk --release      # Android → build/app/outputs/flutter-apk/
 flutter build windows --release  # Windows → build/windows/x64/runner/Release/
 ```
 
+Releases: `scripts/release.sh x.y.z` bumps the version, tags, builds the APK, fetches the Windows
+build from GitHub Actions and publishes both to `https://<machine>.<tailnet>.ts.net/dl/`; the app
+then offers the update ([proposal 51](docs/proposals/51-release-pipeline.md)).
+
 On first launch, enter the daemon URL (`https://<machine>.<tailnet>.ts.net`) and a pairing
 code from `npm run pair:new`.
 

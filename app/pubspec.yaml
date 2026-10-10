@@ -51,6 +51,10 @@ dependencies:
   path_provider: ^2.1.5
   share_plus: ^13.3.1
   url_launcher: ^6.3.0
+  package_info_plus: ^10.2.2
+  crypto: ^3.0.7
+  open_filex: ^4.7.0
+  archive: ^4.4.0
 
 dev_dependencies:
   flutter_test:
