@@ -122,6 +122,15 @@ flutter build windows --release  # Windows → build/windows/x64/runner/Release/
 On first launch, enter the daemon URL (`https://<machine>.<tailnet>.ts.net`) and a pairing
 code from `npm run pair:new`.
 
+## Screenshots
+
+Generated headless from Flutter widget tests with fake data (`scripts/screenshots.sh`); the full set is in
+[`docs/screenshots/`](docs/screenshots/README.md).
+
+<img src="docs/screenshots/chat-overview/phone/01-conversation.png" width="260" alt="Chat on the phone"> <img src="docs/screenshots/paste-collapse/phone/02-pasted-chip.png" width="260" alt="Large paste collapsed to a chip"> <img src="docs/screenshots/file-links/phone/02-viewer-at-line.png" width="260" alt="File viewer at a line">
+
+<img src="docs/screenshots/desktop-workspace/desktop/02-split-view.png" width="780" alt="Desktop workspace with a split view">
+
 ## Security
 
 This app exposes a shell and coding agents over the network, so security comes first:

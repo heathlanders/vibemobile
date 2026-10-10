@@ -59,6 +59,6 @@ its wire/schema impact so promotion to a protocol is mechanical.
 | 47 | [Collapse large pastes in the composer](47-paste-collapse.md) | client only: composer `TextInputFormatter`, chip tokens expanded on send, collapsed long user bubbles | building: code + tests done 2026-10-10, on-device check pending |
 | 48 | [File paths in chat open in the app](48-chat-file-links.md) | client: `FileLink` span in `link_spans.dart`/`markdown.dart` → existing `browse/file` + `FileViewerScreen`; no new daemon surface | building: code + tests done 2026-10-10, on-device check pending |
 | 49 | [Desktop workspace in a non-maximized window](49-responsive-desktop.md) | `DesktopShell` chosen by platform not width; compact rail/sidebar below 1000 px | building: code + tests done 2026-10-10, Windows on-device check pending |
-| 50 | [Workflow screenshots (headless)](50-workflow-screenshots.md) | `app/screenshots/` golden-style tests, `scripts/screenshots.sh` → `docs/screenshots/`; no app code change | accepted 2026-10-10 |
+| 50 | [Workflow screenshots (headless)](50-workflow-screenshots.md) | `app/screenshots/` golden-style tests, `scripts/screenshots.sh` → `docs/screenshots/`; no app code change | shipped 2026-10-10 |
 
 Status: `idea` → `accepted` → `building` → `shipped` (then move detail to the ADR/protocol).

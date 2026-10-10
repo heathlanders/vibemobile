@@ -1,6 +1,6 @@
 # 50 — Workflow screenshots (headless, phone + desktop)
 
-**Status:** accepted (2026-10-10)
+**Status:** shipped 2026-10-10
 
 Screenshots of each workflow, step by step, at phone and desktop sizes. They're for the README and
 docs, and for checking a change visually without a device. Generated headless on the dev box with
@@ -27,3 +27,15 @@ don't run on the web. Flutter's own test renderer captures the real widgets.
 
 Out of scope: device frames, real-device or emulator screenshots (integration_test, a possible
 follow-up), image diff checks in CI.
+
+## What shipped
+
+- `app/screenshots/` (`harness.dart`, `fakes.dart`, one `*_test.dart` per workflow) and
+  `scripts/screenshots.sh`, which regenerates `docs/screenshots/` and its `README.md` index.
+  No app code changed: chat controllers are injected through a `ChatControllerPool` subclass and
+  REST answers come from a fake `HttpOverrides`.
+- Workflows: chat overview (phone), paste collapse (phone + desktop, 4 steps), file links (phone +
+  desktop, 2 steps), desktop workspace (1440 with a split view, 800 compact with the drawer open),
+  copy selection (desktop, select-all highlight).
+- Skipped: dark theme (light only), chat overview at desktop width (the workspace shots cover it),
+  and a real mouse drag for copy (select-all is used instead, same highlight).
