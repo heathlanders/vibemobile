@@ -18,13 +18,16 @@ import 'terminal_session_controller.dart';
 /// to the SAME id, so the shell survives WiFi↔cellular roams. Close = DELETE the
 /// session (the only thing that kills it).
 class TerminalScreen extends ConsumerStatefulWidget {
-  const TerminalScreen({super.key, required this.creds, required this.session, this.url, this.onClose});
+  const TerminalScreen({super.key, required this.creds, required this.session, this.url, this.onClose, this.onMenu});
 
   final Creds creds;
   final Session session;
 
   /// Desktop workspace tab (ADR 0015): called after Close instead of popping.
   final VoidCallback? onClose;
+
+  /// Phone shell: shows a ☰ button as the app-bar leading that opens the navigation panel.
+  final VoidCallback? onMenu;
 
   /// Attach somewhere other than `/pty/<id>` — the TUI of a CLI session running
   /// on the server (ttyUrl, ADR 0012). Such a view has no Close: leaving just
@@ -75,6 +78,9 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: widget.onMenu == null
+            ? null
+            : IconButton(tooltip: 'Menu', icon: const Icon(Icons.menu), onPressed: widget.onMenu),
         title: Text(widget.session.label),
         actions: [
           if (widget.url == null)

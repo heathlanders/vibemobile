@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' show PlatformDispatcher;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
@@ -19,6 +20,7 @@ import 'features/dashboard/presentation/dashboard_screen.dart';
 import 'features/dashboard/presentation/desktop_shell.dart';
 import 'features/notifications/data/push_service.dart';
 import 'features/pairing/presentation/pairing_screen.dart';
+import 'features/phone/presentation/phone_shell.dart';
 import 'features/sessions/data/session_api.dart';
 import 'features/update/presentation/update_banner.dart';
 
@@ -37,6 +39,13 @@ Future<void> main() async {
   };
   // Push (ADR 0013): FCM + local notifications. Fail-soft — never blocks startup.
   await PushService.init();
+  // Phones are portrait-only (proposal 54); tablets and desktop rotate freely.
+  if (isMobile) {
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    if (isPhone(view.physicalSize / view.devicePixelRatio)) {
+      await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    }
+  }
   runApp(const ProviderScope(child: VibeMobileApp()));
 }
 
@@ -101,6 +110,22 @@ class _VibeMobileAppState extends ConsumerState<VibeMobileApp> {
     );
   }
 
+  /// Mouse back/forward on desktop (proposal 55): back first pops any pushed
+  /// route, else steps the shell's rail history; forward steps the shell.
+  void _onPointerDown(PointerDownEvent event) {
+    if (!DesktopShell.isDesktopPlatform) return;
+    if (event.buttons & kBackMouseButton != 0) {
+      final nav = _navKey.currentState;
+      if (nav != null && nav.canPop()) {
+        nav.maybePop();
+      } else {
+        DesktopNav.back?.call();
+      }
+    } else if (event.buttons & kForwardMouseButton != 0) {
+      DesktopNav.forward?.call();
+    }
+  }
+
   @override
   void dispose() {
     _shareSub?.cancel();
@@ -118,7 +143,10 @@ class _VibeMobileAppState extends ConsumerState<VibeMobileApp> {
       darkTheme: AppTheme.dark,
       themeMode: ref.watch(themeModeProvider),
       home: const _Root(),
-      builder: AppTheme.capToastWidth,
+      builder: (context, child) => Listener(
+        onPointerDown: _onPointerDown,
+        child: AppTheme.capToastWidth(context, child),
+      ),
     );
   }
 }
@@ -137,7 +165,12 @@ class _Root extends ConsumerWidget {
       data: (c) {
         if (c == null) return const PairingScreen();
         return UpdateHost(
-          child: DesktopShell.shown(context) ? DesktopShell(creds: c) : DashboardScreen(creds: c),
+          child: DesktopShell.shown(context)
+              ? DesktopShell(creds: c)
+              // Phones get the Discord-style shell (proposal 54); narrow tablets the dashboard.
+              : isPhone(MediaQuery.sizeOf(context))
+                  ? PhoneShell(creds: c)
+                  : DashboardScreen(creds: c),
         );
       },
       loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),

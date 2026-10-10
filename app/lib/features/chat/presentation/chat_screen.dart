@@ -76,6 +76,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.onTitle,
     this.onOpenSession,
     this.initialDraft,
+    this.onMenu,
   });
 
   final Creds creds;
@@ -92,6 +93,9 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// Where a session started from here opens (hand off, ADR 0016). The desktop
   /// workspace opens it as a tab; null replaces this route with its ChatScreen.
   final void Function(Session)? onOpenSession;
+
+  /// Phone shell: shows a ☰ button as the app-bar leading that opens the navigation panel.
+  final VoidCallback? onMenu;
 
   /// Text to put in the composer (not send) when the screen opens — a branch made "before"
   /// a message hands that message back for rewriting (proposal 42).
@@ -1030,6 +1034,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       onDragDone: _onDrop,
       child: Scaffold(
       appBar: AppBar(
+        leading: widget.onMenu == null
+            ? null
+            : IconButton(tooltip: 'Menu', icon: const Icon(Icons.menu), onPressed: widget.onMenu),
         title: ListenableBuilder(
           listenable: _controller,
           builder: (context, _) {
