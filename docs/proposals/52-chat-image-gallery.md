@@ -1,6 +1,6 @@
 # 52 — Chat image gallery
 
-**Status:** building 2026-10-10
+**Status:** shipped 2026-10-10
 
 From the inbox: "if there are multiple images it should be a slideshow gallery; clicking off it or
 hitting Escape should close the image, right now the only way is the X button."

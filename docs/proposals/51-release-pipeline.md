@@ -1,6 +1,6 @@
 # 51 — Release pipeline and in-app updates
 
-**Status:** building 2026-10-10
+**Status:** shipped 2026-10-10
 
 One command on the dev box ships both clients. Builds are hosted on the tailnet at a fixed URL,
 and the app offers a one-click update when a newer build is out. Before this, the APK was built and

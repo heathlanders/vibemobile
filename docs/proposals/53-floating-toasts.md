@@ -1,6 +1,6 @@
 # 53 — Floating toasts
 
-**Status:** building 2026-10-10
+**Status:** shipped 2026-10-10
 
 From the inbox: the "Copied" style messages show as "a big white bar across the bottom of the
 screen". That was Material's default snackbar, which is full width and uses the inverse surface,
