@@ -512,7 +512,7 @@ From the gap analysis against mainstream coding harnesses. Daemon 358/358, clien
 
 Five Notes, triaged into Proposals. Branch `feat/notes-2026-10`.
 
-- [ ] **README rewrite** for the public repo: full feature list, quick start, security model.
+- [x] **README rewrite** for the public repo: full feature list, quick start, security model.
 - [ ] **Copy keeps line breaks** — bug against [proposal 06](proposals/06-message-copy.md): desktop drag-select across markdown blocks.
 - [ ] **Desktop workspace in a non-maximized window** — [proposal 49](proposals/49-responsive-desktop.md).
 - [ ] **Collapse large pastes in the composer** — [proposal 47](proposals/47-paste-collapse.md).

@@ -1,93 +1,149 @@
 # VibeMobile
 
-An Android app + Node/TypeScript daemon to manage software projects, terminals,
-and [Claude Code](https://claude.com/claude-code) sessions on a home Linux server
-— reached privately over [Tailscale](https://tailscale.com).
+Run your software projects, terminals and [Claude Code](https://claude.com/claude-code)
+sessions on a home Linux server, and drive them from your phone or desktop over a
+private [Tailscale](https://tailscale.com) network.
 
-The point: **terminal sessions that survive a dropped connection.** Each session
-lives in `tmux` on the server, decoupled from any socket, so when your phone
-roams WiFi↔cellular the shell keeps running and the app re-attaches — no lost
-work, no typing `tmux`.
+- **Android app** and **Windows desktop app** (one Flutter codebase).
+- **`vibe-daemon`** on the server (Node + TypeScript). It holds the sessions, so they keep
+  running when your phone sleeps, roams between WiFi and cellular, or the app closes.
+- **No public endpoint.** The daemon binds to localhost only; `tailscale serve` is the
+  only way in, and every device has to be paired.
 
-> Status: **M2 in progress.** M0/M1 complete. The daemon engine and Flutter
-> client are built and tested; only the on-device roam test remains. See
-> [`docs/milestones.md`](docs/milestones.md).
+> Status: personal project, in daily use. Milestones M0–M5 and the desktop track are
+> built; hardening (M6) is ongoing. Progress: [`docs/milestones.md`](docs/milestones.md).
+
+## Features
+
+**Claude Code sessions**
+- Native chat UI on the Claude Agent SDK, with several sessions per project, resumable
+  transcripts, and Claude Code sessions started outside the app mirrored in.
+- Approve or deny permissions with a diff preview. Modes: Ask / Auto-allow / Plan. "Approval
+  needed" jumps you to the pending request.
+- Stop or interrupt a turn, retry or edit the last turn, branch a conversation, and rewind
+  a turn's file edits (checkpoints).
+- Live turn status, a context meter with manual compaction, reasoning-effort control, model
+  switching in the middle of a session, and collapsible thinking blocks.
+- Composer: voice input, image and screenshot attachments (including clipboard paste on
+  desktop), `@file` completion, prompt insert, and Claude Code skills and slash commands.
+- Markdown rendering (code blocks, tables, links), folded tool runs, tool output, message
+  copy, and transcript copy or share.
+- Message search, rename and tag sessions, session templates, scroll-to-bottom with an
+  unread count.
+- A git worktree per session, if you want one. Session-to-session messaging (`vibe-peers`
+  MCP tools). MCP server view. Scheduled prompts.
+
+**Terminal**
+- Full terminal (`xterm`) on a `tmux`-backed PTY that survives disconnects, plus an extra
+  key row for mobile.
+
+**Projects and dashboard**
+- Project grid with status, a session switcher, a multi-chat grid, and project notes (the
+  idea inbox).
+- New project from a scaffold. Project cockpit with activity, cost, devices and the audit log.
+- Prompt library with variables, reusable across projects, plus prompt history and "Improve
+  prompt".
+
+**Files and git**
+- Changed-files sheet with diffs. A read-only file browser confined to the project, with
+  secrets and `.git` hidden.
+- Git status and commits, and pull request / CI status (read-only).
+
+**Desktop workspace** (Windows)
+- Navigation rail, sidebar, tabs, split view, a changes pane, and a Ctrl+K command palette.
+- Model registry covering the major providers, plus agent CLI presets and hand-off.
+- Token and cost dashboard, a read-only system monitor, and an always-on Claude plan usage
+  meter.
+
+**Notifications**
+- Push notifications (FCM) when a session finishes or needs you, with deep links straight
+  into it.
+
+Per-feature docs: [`docs/proposals/`](docs/proposals/README.md).
 
 ## Architecture
 
 ```
-phone (Tailscale on) ──► https://<machine>.<tailnet>.ts.net  (tailscale serve)
-                          └─► 127.0.0.1:8787  vibe-daemon (localhost-bound)
-                                ├─ auth: device pairing + bearer token
-                                ├─ SQLite: devices, projects, sessions, events
-                                ├─ scanner: lists projects under the roots
-                                └─ tmux -L vibe: durable terminal sessions
+phone / desktop (Tailscale on) ──► https://<machine>.<tailnet>.ts.net   (tailscale serve)
+                                    └─► 127.0.0.1:8787  vibe-daemon (localhost only)
+                                          ├─ auth: device pairing + bearer token
+                                          ├─ SQLite: devices, projects, sessions, events
+                                          ├─ Claude Agent SDK sessions (+ native multi-provider engine)
+                                          ├─ scanner: projects under the configured roots
+                                          └─ tmux -L vibe: durable terminal sessions
 ```
 
-- **Client** (`app/`) — Flutter, Riverpod, `xterm` terminal, `dio`,
-  `flutter_secure_storage`, `web_socket_channel`.
-- **Daemon** (`vibe-daemon/`) — Node 20 + TypeScript, Fastify + `@fastify/websocket`,
-  `better-sqlite3`, `node-pty`, `@anthropic-ai/claude-agent-sdk`, run via `tsx`.
-- **Transport** — Tailscale (ADR 0005). Daemon binds localhost only; the tailnet
-  is the network boundary, the bearer token a second layer. No public endpoint.
+- **Client** (`app/`): Flutter, Riverpod, `xterm`, `dio`, `web_socket_channel`,
+  `flutter_secure_storage`, FCM.
+- **Daemon** (`vibe-daemon/`): Node + TypeScript, Fastify + `@fastify/websocket`,
+  `better-sqlite3`, `node-pty`, `@anthropic-ai/claude-agent-sdk`, run with `tsx`.
+- **Transport**: Tailscale ([ADR 0005](docs/decisions/0005-tailscale-transport.md)).
 
-`docs/` is the source of truth: ADRs in `docs/decisions/`, wire specs in
-`docs/protocols/`, progress in `docs/milestones.md`, the security checklist in
-`docs/security.md`. `.claude/docs-map.md` routes you to the right doc per change.
+## Quick start
 
-## Repo layout
+### Daemon (Linux server)
 
-| Path | What |
-|------|------|
-| `vibe-daemon/` | The server daemon (separate workspace) |
-| `app/` | The Flutter client (separate workspace) |
-| `docs/` | Decisions, protocols, milestones, security — the running record |
-| `PLAN.md` | The master plan: goal, architecture, milestones |
-| `CLAUDE.md` | How Claude works in this repo |
-
-## Daemon — run it
-
-Requires Node 20+ and `tmux`. Binds `127.0.0.1:8787` only.
+Requires Node 20+, `tmux`, Tailscale, and a logged-in `claude` CLI.
 
 ```bash
 cd vibe-daemon
 npm install
-npm test          # 24 tests incl. a real-tmux reattach wire test
+npm test          # full suite, including a real-tmux reattach test
 npm start         # http://127.0.0.1:8787 (localhost only)
-npm run pair:new  # print a one-time pairing code for a new device
+npm run pair:new  # prints a one-time pairing code for a new device
 ```
 
-Expose it to your phone over the tailnet (one-time, no public port):
+Expose it to your tailnet (one time, no public port):
 
 ```bash
 tailscale serve --bg 8787   # https://<machine>.<tailnet>.ts.net → 127.0.0.1:8787
 ```
 
-Run as a service: see [`vibe-daemon/deploy/`](vibe-daemon/deploy/) (systemd unit
-+ install steps).
+To run it as a systemd user service, see [`vibe-daemon/deploy/`](vibe-daemon/deploy/).
 
-Useful env: `VIBE_PROJECT_ROOTS` (comma-separated dirs the scanner walks,
-default: your home directory), `PORT`, `VIBE_DB`.
+Useful environment variables: `VIBE_PROJECT_ROOTS` (comma-separated folders the scanner
+walks; default is your home folder), `PORT`, `VIBE_DB`, `VIBE_MAX_CLAUDE` (concurrent
+Claude sessions).
 
-## App — run it
+### App
 
-Requires the Flutter SDK; building for Android needs the Android SDK + JDK 17.
+Requires the Flutter SDK. Android builds also need the Android SDK and JDK 17; Windows builds
+need Visual Studio with the C++ desktop workload.
 
 ```bash
 cd app
 flutter pub get
-flutter analyze        # clean
-flutter test           # 6 tests (reconnect policy + pairing form)
-flutter run            # on a connected device, or:
-flutter build apk      # → build/app/outputs/flutter-apk/
+flutter test
+flutter run                      # connected device
+flutter build apk --release      # Android → build/app/outputs/flutter-apk/
+flutter build windows --release  # Windows → build/windows/x64/runner/Release/
 ```
 
-First launch: enter the daemon URL + a pairing code (`npm run pair:new` on the
-server), then pick a project and open a terminal.
+On first launch, enter the daemon URL (`https://<machine>.<tailnet>.ts.net`) and a pairing
+code from `npm run pair:new`.
 
 ## Security
 
-This app exposes a shell over the network — see
-[`docs/security.md`](docs/security.md). The daemon never binds beyond localhost;
-ingress is `tailscale serve`; every request needs a paired device token; pairing
-requires physical server access (the code is printed in the server terminal).
+This app exposes a shell and coding agents over the network, so security comes first:
+
+- The daemon never binds beyond `127.0.0.1`; the only ingress is `tailscale serve`.
+- Every request carries a paired device token. Pairing needs physical access to the server
+  (the code is printed there), and each device can be revoked on its own.
+- Rate limits and an audit log for executed commands. File reads are confined to the project,
+  with secrets and `.git` never served.
+
+Checklist and live status: [`docs/security.md`](docs/security.md).
+
+## Docs
+
+`docs/` is the source of truth:
+
+| Path | What |
+|------|------|
+| [`PLAN.md`](PLAN.md) | Goal, architecture, milestones |
+| [`docs/milestones.md`](docs/milestones.md) | Progress per milestone |
+| [`docs/proposals/`](docs/proposals/README.md) | One doc per feature |
+| [`docs/decisions/`](docs/decisions/README.md) | Architecture decision records |
+| `docs/protocols/` | Wire specs (WebSocket and REST) |
+| [`docs/WORKFLOW.md`](docs/WORKFLOW.md) | How work is tracked in this repo |
+| [`CLAUDE.md`](CLAUDE.md) | How Claude works in this repo |
