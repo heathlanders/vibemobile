@@ -44,6 +44,13 @@ tailscale serve --bg 8787      # https://<machine>.<tailnet>.ts.net → 127.0.0.
 tailscale serve status         # confirm the mapping
 ```
 
+Release downloads (proposal 51) are a static dir on the same host, filled by
+`scripts/release.sh`. Serving a path needs root:
+
+```bash
+sudo tailscale serve --bg --set-path /dl /data/volumes/vibemobile/releases   # → https://<machine>.<tailnet>.ts.net/dl/
+```
+
 `--bg` persists across reboots. The hostname is your box's MagicDNS name; the
 cert is issued automatically by Tailscale (`*.ts.net`).
 
