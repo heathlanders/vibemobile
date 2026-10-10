@@ -123,7 +123,8 @@ class _VibeMobileAppState extends ConsumerState<VibeMobileApp> {
 
 /// Routes on credential presence: paired → session list, else → pairing.
 /// `credsProvider` re-evaluates after pair/sign-out (`ref.invalidate`).
-/// Paired + wide window → [DesktopShell]; otherwise the phone dashboard.
+/// Paired + desktop platform (or a wide window) → [DesktopShell]; otherwise
+/// the phone dashboard.
 class _Root extends ConsumerWidget {
   const _Root();
 
@@ -133,9 +134,7 @@ class _Root extends ConsumerWidget {
     return creds.when(
       data: (c) {
         if (c == null) return const PairingScreen();
-        return MediaQuery.sizeOf(context).width >= DesktopShell.breakpoint
-            ? DesktopShell(creds: c)
-            : DashboardScreen(creds: c);
+        return DesktopShell.shown(context) ? DesktopShell(creds: c) : DashboardScreen(creds: c);
       },
       loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (e, _) => Scaffold(body: Center(child: Text('$e'))),

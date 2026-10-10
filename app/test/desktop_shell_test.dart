@@ -25,6 +25,9 @@ void main() {
   }
 
   testWidgets('workspace: empty state, Ctrl+K opens the palette', (tester) async {
+    // 1280 logical px: the default 3x ratio would make this window compact.
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.binding.setSurfaceSize(const Size(1280, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(const ProviderScope(child: MaterialApp(home: WorkspaceScreen(creds: creds))));

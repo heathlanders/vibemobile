@@ -13,6 +13,7 @@ import '../../../core/widgets.dart';
 import '../../chat/data/file_edits_api.dart';
 import '../../chat/presentation/changed_files_sheet.dart';
 import '../../chat/presentation/chat_screen.dart';
+import '../../dashboard/presentation/desktop_shell.dart';
 import '../../notes/presentation/notes_panel.dart';
 import '../../projects/data/git_api.dart';
 import '../../sessions/data/session_api.dart';
@@ -54,6 +55,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   String? _active;
   String? _split; // second visible tab, right pane
   bool _showChanges = true;
+  final _scaffoldKey = GlobalKey<ScaffoldState>(); // compact mode: sidebar drawer
   int _sidebarGen = 0; // bump → expanded project lists refetch
 
   // Sessions started elsewhere (the phone, a `vc` on the PC) show up without a
@@ -112,6 +114,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   Session? _tab(String? id) => id == null ? null : _tabs.where((t) => t.id == id).firstOrNull;
 
   void _open(Session s) {
+    _scaffoldKey.currentState?.closeDrawer();
     if (_tab(s.id) == null) {
       if (_tabs.length >= WorkspaceScreen.maxTabs) {
         _snack('Close a tab first (max ${WorkspaceScreen.maxTabs}).');
@@ -219,7 +222,11 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     _select(_tabs[(i + delta) % _tabs.length].id);
   }
 
+  /// Compact windows hide the split view and changes pane (state is kept).
+  bool get _compact => DesktopShell.isCompact(context);
+
   void _toggleSplit() {
+    if (_compact) return;
     if (_split != null) {
       setState(() => _split = null);
       return;
@@ -279,7 +286,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       );
 
   Widget _panes() {
-    final visible = [_tab(_active), _tab(_split)].nonNulls.toList();
+    final visible = [_tab(_active), _compact ? null : _tab(_split)].nonNulls.toList();
     if (visible.isEmpty) {
       return const EmptyState(
         icon: Icons.tab_outlined,
@@ -302,6 +309,19 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   @override
   Widget build(BuildContext context) {
     final active = _tab(_active);
+    final compact = _compact;
+    final sidebar = _Sidebar(
+      projects: _projects,
+      presets: _presets,
+      api: _api,
+      generation: _sidebarGen,
+      openIds: {for (final t in _tabs) t.id},
+      onOpen: _open,
+      onMenu: _sessionMenu,
+      onCreate: _create,
+      onNotes: (p) => showProjectNotes(context, widget.creds, p),
+      onRefresh: _refreshSidebar,
+    );
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.keyK, control: true): _palette,
@@ -315,43 +335,33 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       child: Focus(
         autofocus: true,
         child: Scaffold(
+          key: _scaffoldKey,
+          drawer: compact ? Drawer(width: 280, child: SafeArea(child: sidebar)) : null,
           body: Row(children: [
-            SizedBox(
-              width: 260,
-              child: _Sidebar(
-                projects: _projects,
-                presets: _presets,
-                api: _api,
-                generation: _sidebarGen,
-                openIds: {for (final t in _tabs) t.id},
-                onOpen: _open,
-                onMenu: _sessionMenu,
-                onCreate: _create,
-                onNotes: (p) => showProjectNotes(context, widget.creds, p),
-                onRefresh: _refreshSidebar,
-              ),
-            ),
-            const VerticalDivider(width: 1),
+            if (!compact) SizedBox(width: 260, child: sidebar),
+            if (!compact) const VerticalDivider(width: 1),
             Expanded(
               child: Column(children: [
                 _TabStrip(
                   tabs: _tabs,
                   titles: _titles,
                   active: _active,
-                  split: _split,
+                  split: compact ? null : _split,
                   showChanges: _showChanges,
+                  compact: compact,
                   onSelect: _select,
                   onClose: _closeTab,
                   onReorder: _reorder,
                   onSplit: _toggleSplit,
                   onPalette: _palette,
+                  onSidebar: () => _scaffoldKey.currentState?.openDrawer(),
                   onToggleChanges: () => setState(() => _showChanges = !_showChanges),
                 ),
                 const Divider(height: 1),
                 Expanded(child: _panes()),
               ]),
             ),
-            if (_showChanges && active != null && active.kind == 'claude') ...[
+            if (!compact && _showChanges && active != null && active.kind == 'claude') ...[
               const VerticalDivider(width: 1),
               SizedBox(
                 width: 300,
@@ -565,11 +575,13 @@ class _TabStrip extends ConsumerStatefulWidget {
     required this.active,
     required this.split,
     required this.showChanges,
+    required this.compact,
     required this.onSelect,
     required this.onClose,
     required this.onReorder,
     required this.onSplit,
     required this.onPalette,
+    required this.onSidebar,
     required this.onToggleChanges,
   });
 
@@ -578,11 +590,13 @@ class _TabStrip extends ConsumerStatefulWidget {
   final String? active;
   final String? split;
   final bool showChanges;
+  final bool compact; // split + changes disabled, sidebar button shown
   final void Function(String) onSelect;
   final void Function(String) onClose;
   final void Function(int from, int to) onReorder;
   final VoidCallback onSplit;
   final VoidCallback onPalette;
+  final VoidCallback onSidebar;
   final VoidCallback onToggleChanges;
 
   @override
@@ -657,6 +671,7 @@ class _TabStripState extends ConsumerState<_TabStrip> {
     return SizedBox(
       height: 44,
       child: Row(children: [
+        if (w.compact) IconButton(tooltip: 'Projects', icon: const Icon(Icons.menu), onPressed: w.onSidebar),
         Expanded(
           child: LayoutBuilder(builder: (context, box) {
             final fit = tabs.isEmpty ? _maxLabel : (box.maxWidth - 2 * Spacing.xs) / tabs.length - _chrome;
@@ -723,13 +738,13 @@ class _TabStripState extends ConsumerState<_TabStrip> {
           tooltip: 'Split (Ctrl+\\)',
           isSelected: split != null,
           icon: const Icon(Icons.vertical_split_outlined),
-          onPressed: w.onSplit,
+          onPressed: w.compact ? null : w.onSplit,
         ),
         IconButton(
           tooltip: 'Changed files',
           isSelected: w.showChanges,
           icon: const Icon(Icons.difference_outlined),
-          onPressed: w.onToggleChanges,
+          onPressed: w.compact ? null : w.onToggleChanges,
         ),
       ]),
     );

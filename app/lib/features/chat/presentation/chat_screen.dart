@@ -36,6 +36,7 @@ import 'chat_image.dart';
 import '../domain/chat_message.dart';
 import '../domain/composer_triggers.dart';
 import '../domain/handoff.dart';
+import '../domain/paste_tokens.dart';
 import '../domain/rollover.dart';
 import '../domain/slash_command.dart';
 import '../domain/image_normalize.dart';
@@ -50,6 +51,7 @@ import 'chat_session_controller.dart';
 import 'composer_overlay.dart';
 import 'diff_lines.dart';
 import 'linkified_text.dart';
+import 'paste_composer.dart';
 import 'context_sheet.dart';
 import 'branch_sheet.dart';
 import 'ci_sheet.dart';
@@ -124,7 +126,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   late final ChatControllerPool _pool; // read in initState: ref is unsafe in dispose
   late final AttachmentApi _attachments;
   final _picker = ImagePicker();
-  final _input = TextEditingController();
+  // Large pastes collapse to chip tokens (proposal 47); expanded again on send.
+  final _pastes = PasteTokens();
+  late final _input = PasteTextController(_pastes);
   late final _inputFocus = FocusNode(onKeyEvent: _onComposerKey);
 
   /// Desktop: Enter sends, Shift+Enter inserts a newline. Phones keep the
@@ -604,7 +608,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Type a draft first')));
       return;
     }
-    final better = await improvePromptFlow(context, PromptApi(dioFor(widget.creds)), _input.text);
+    final better = await improvePromptFlow(context, PromptApi(dioFor(widget.creds)), _pastes.expand(_input.text));
     if (better == null || !mounted) return;
     _input.text = better;
     _input.selection = TextSelection.collapsed(offset: better.length);
@@ -827,11 +831,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   }
 
   void _send() {
-    final text = _input.text.trim();
+    final text = _pastes.expand(_input.text).trim();
     if (text.isEmpty && _pending.isEmpty) return;
     HapticFeedback.selectionClick();
     _controller.sendUser(text, images: _pending.map((p) => p.id).toList());
     _input.clear();
+    _pastes.clear();
     setState(_pending.clear);
   }
 
@@ -866,12 +871,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     } catch (_) {/* no image support on this platform → fall through to text */}
     final text = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
     if (text == null || text.isEmpty || !mounted) return;
-    final value = _input.value;
-    final sel = value.selection.isValid ? value.selection : TextSelection.collapsed(offset: value.text.length);
+    _input.value = _pastes.insert(_input.value, text); // formatters don't see programmatic edits
+  }
+
+  /// Tap on a paste chip (proposal 47): view the full text, expand it inline or drop it.
+  Future<void> _openPasteAtCaret() async {
+    final range = _input.tokenAt(_input.selection.baseOffset);
+    if (range == null) return;
+    final token = _input.text.substring(range.start, range.end);
+    final text = _pastes.textOf(token);
+    if (text == null) return;
+    final action = await showPasteSheet(context, text);
+    if (action == null || !mounted || range.end > _input.text.length || _input.text.substring(range.start, range.end) != token) return;
+    final replacement = action == PasteAction.expand ? text : '';
     _input.value = TextEditingValue(
-      text: value.text.replaceRange(sel.start, sel.end, text),
-      selection: TextSelection.collapsed(offset: sel.start + text.length),
+      text: _input.text.replaceRange(range.start, range.end, replacement),
+      selection: TextSelection.collapsed(offset: range.start + replacement.length),
     );
+    if (!_input.text.contains(token)) _pastes.forget(token); // last copy gone → drop the map entry
   }
 
   /// Normalize (BMP → PNG, ≤1568px), upload, and park the minted id in
@@ -1272,6 +1289,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                 mode: _controller.external == null ? _controller.mode : null, // a mirrored CLI owns its own mode
                 onModeTap: _pickMode,
                 controller: _input,
+                inputFormatters: [PasteCollapseFormatter(_pastes)],
+                onTapField: _openPasteAtCaret,
                 focusNode: _inputFocus,
                 onSend: _send,
                 onAttach: _pickSource,
@@ -1375,14 +1394,14 @@ class _Bubble extends StatelessWidget {
                   ),
                   if (message.text.isNotEmpty) ...[
                     const SizedBox(height: 6),
-                    LinkifiedText(message.text),
+                    CollapsibleText(message.text, builder: (t) => LinkifiedText(t)),
                   ],
                 ],
               ),
             ),
           );
         }
-        return _align(Alignment.centerRight, scheme.primaryContainer, message.text);
+        return _align(Alignment.centerRight, scheme.primaryContainer, message.text, collapse: true);
       case ChatRole.assistant:
         final bubble = _align(Alignment.centerLeft, scheme.surfaceContainerHighest, message.text,
             streaming: message.streaming, markdown: true);
@@ -1463,30 +1482,40 @@ class _Bubble extends StatelessWidget {
     }
   }
 
-  Widget _align(Alignment a, Color bg, String text, {bool streaming = false, bool markdown = false}) => Align(
+  Widget _align(Alignment a, Color bg, String text, {bool streaming = false, bool markdown = false, bool collapse = false}) => Align(
         alignment: a,
         child: Container(
           margin: const EdgeInsets.symmetric(vertical: Spacing.xs),
           padding: const EdgeInsets.all(Spacing.md),
           decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(Radii.sm)),
-          child: streaming
-              ? _text(
-                  markdown,
-                  '$text ',
-                  trailing: const WidgetSpan(
-                    alignment: PlaceholderAlignment.baseline,
-                    baseline: TextBaseline.alphabetic,
-                    child: StreamingCursor(),
-                  ),
-                )
-              : _text(markdown, text),
+          child: Builder(
+            builder: (context) => streaming
+                ? _text(
+                    context,
+                    markdown,
+                    '$text ',
+                    trailing: const WidgetSpan(
+                      alignment: PlaceholderAlignment.baseline,
+                      baseline: TextBaseline.alphabetic,
+                      child: StreamingCursor(),
+                    ),
+                  )
+                : collapse
+                    ? CollapsibleText(text, builder: (t) => _text(context, markdown, t))
+                    : _text(context, markdown, text),
+          ),
         ),
       );
 
   // Assistant text is markdown (domain/markdown.dart); the user's own text and
   // errors stay plain, so what you typed is shown exactly as you typed it.
-  Widget _text(bool markdown, String text, {InlineSpan? trailing}) =>
-      markdown ? MarkdownText(text, trailing: trailing) : LinkifiedText(text, trailing: trailing);
+  // File references open in the in-app viewer for this session (proposal 48).
+  Widget _text(BuildContext context, bool markdown, String text, {InlineSpan? trailing}) {
+    void open(String path, int? line) => openChatFile(context, sessionId: sessionId, creds: creds, path: path, line: line);
+    return markdown
+        ? MarkdownText(text, trailing: trailing, onOpenFile: open)
+        : LinkifiedText(text, trailing: trailing, onOpenFile: open);
+  }
 
   /// Long-press menu (proposals 06 + 11): Copy the message; Retry/Edit a user turn.
   void _showActions(BuildContext context) {
@@ -1948,6 +1977,8 @@ class _Composer extends StatelessWidget {
     required this.mode,
     required this.onModeTap,
     required this.controller,
+    required this.inputFormatters,
+    required this.onTapField,
     required this.focusNode,
     required this.onSend,
     required this.onAttach,
@@ -1962,6 +1993,8 @@ class _Composer extends StatelessWidget {
   final SessionMode? mode; // null → no chip (old daemon, or a mirrored CLI session)
   final VoidCallback onModeTap;
   final TextEditingController controller;
+  final List<TextInputFormatter> inputFormatters;
+  final VoidCallback onTapField; // taps on a paste chip open it (proposal 47)
   final FocusNode focusNode;
   final VoidCallback onSend;
   final VoidCallback? onMic; // null → hide the on-device speech button
@@ -2022,6 +2055,8 @@ class _Composer extends StatelessWidget {
               Expanded(
                 child: TextField(
                   controller: controller,
+                  inputFormatters: inputFormatters,
+                  onTap: onTapField,
                   focusNode: focusNode,
                   minLines: 1,
                   maxLines: 5,

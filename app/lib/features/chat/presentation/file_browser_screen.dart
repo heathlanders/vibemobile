@@ -119,11 +119,43 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
   }
 }
 
-/// A text file, read-only: monospace, selectable, scrolls both ways, copy button.
+/// Opens a file named in chat (proposal 48) in [FileViewerScreen]. The only request it can make is
+/// browse/file for [sessionId] (the daemon confines, hides secrets, refuses binaries); refusals
+/// become a snackbar. Nothing is launched outside the app.
+Future<void> openChatFile(
+  BuildContext context, {
+  required String sessionId,
+  required String path,
+  int? line,
+  Creds? creds,
+  BrowseApi? api,
+}) async {
+  final nav = Navigator.of(context);
+  final messenger = ScaffoldMessenger.of(context);
+  void say(String m) => messenger.showSnackBar(SnackBar(content: Text(m)));
+  try {
+    final f = await (api ?? BrowseApi(dioFor(creds!))).read(sessionId, path);
+    if (!context.mounted) return;
+    await nav.push(sharedAxisRoute(FileViewerScreen(path: f.path, line: line, load: () async => f)));
+  } on BrowseError catch (e) {
+    say(switch (e.status) {
+      403 => 'Not in this project',
+      404 => 'File not found',
+      415 => 'Binary file',
+      _ => 'Could not open the file',
+    });
+  } catch (_) {
+    say('Could not open the file');
+  }
+}
+
+/// A text file, read-only: monospace, selectable, scrolls both ways, copy button. With [line]
+/// (1-based) the view scrolls there and highlights it.
 class FileViewerScreen extends StatelessWidget {
-  const FileViewerScreen({super.key, required this.path, required this.load});
+  const FileViewerScreen({super.key, required this.path, required this.load, this.line});
   final String path;
   final Future<BrowseFile> Function() load;
+  final int? line;
 
   @override
   Widget build(BuildContext context) {
@@ -168,18 +200,67 @@ class FileViewerScreen extends StatelessWidget {
                           style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                         ),
                       ),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            padding: const EdgeInsets.all(Spacing.md),
-                            child: SelectableText(f.content, style: const TextStyle(fontFamily: AppTheme.monoFontFamily, fontSize: 12.5, height: 1.4)),
-                          ),
-                        ),
-                      ),
+                      Expanded(child: _FileBody(content: f.content, line: line)),
                     ]),
         );
       },
+    );
+  }
+}
+
+const _bodyStyle = TextStyle(fontFamily: AppTheme.monoFontFamily, fontSize: 12.5, height: 1.4);
+
+class _FileBody extends StatefulWidget {
+  const _FileBody({required this.content, this.line});
+  final String content;
+  final int? line;
+
+  @override
+  State<_FileBody> createState() => _FileBodyState();
+}
+
+class _FileBodyState extends State<_FileBody> {
+  final _scroll = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    final line = widget.line;
+    if (line != null && line > 1) {
+      // Monospace with a fixed line height: line N starts at (N-1) * lineHeight. Keep two lines of context above.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_scroll.hasClients) return;
+        final y = (line - 3).clamp(0, 1 << 30) * _bodyStyle.fontSize! * _bodyStyle.height!;
+        _scroll.jumpTo(y.clamp(0.0, _scroll.position.maxScrollExtent));
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final line = widget.line;
+    final lines = widget.content.split('\n');
+    final hit = line != null && line >= 1 && line <= lines.length;
+    final Widget text = hit
+        ? SelectableText.rich(TextSpan(style: _bodyStyle, children: [
+            TextSpan(text: lines.take(line - 1).map((l) => '$l\n').join()),
+            TextSpan(text: lines[line - 1], style: TextStyle(backgroundColor: Theme.of(context).colorScheme.tertiaryContainer)),
+            TextSpan(text: line < lines.length ? '\n${lines.skip(line).join('\n')}' : ''),
+          ]))
+        : SelectableText(widget.content, style: _bodyStyle);
+    return SingleChildScrollView(
+      controller: _scroll,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.all(Spacing.md),
+        child: text,
+      ),
     );
   }
 }
