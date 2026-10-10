@@ -1,0 +1,38 @@
+name: release-windows
+# Builds the Windows desktop app for a release tag (scripts/release.sh pushes it).
+# The box downloads the zip with `gh run download` and hosts it on the tailnet.
+# PRs touching the Windows runner or this file build too, as a check.
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths:
+      - '.github/workflows/release-windows.yml'
+      - 'app/windows/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: '3.44.1'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter build windows --release
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath vibemobile-windows.zip
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: vibemobile-windows
+          path: app/vibemobile-windows.zip
+          retention-days: 14
+          if-no-files-found: error

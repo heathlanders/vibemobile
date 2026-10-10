@@ -293,10 +293,9 @@ All six phase commits are on branch `feat/desktop-target` (PR open against `main
       which starts in `system32`), `flutter run -d windows` first, then
       `flutter build windows --release` and copy the whole `Release\` folder to
       `C:\Program Files\VibeMobile` from an admin PowerShell.
-      - **Updating:** the install is `C:\Program Files\VibeMobile\Release`. Close the
-        app fully, then from an admin PowerShell:
-        `robocopy <repo>\app\build\windows\x64\runner\Release "C:\Program Files\VibeMobile\Release" /MIR`
-        (exit codes 0–7 = success). Pairing survives; the token lives in the user profile.
+      - **Updating:** superseded by [proposal 51](proposals/51-release-pipeline.md): builds come from
+        `scripts/release.sh`, and the app updates itself once installed in `%LOCALAPPDATA%\VibeMobile`.
+        Pairing survives; the token lives in the user profile.
       - **VS 2022 must be current (17.14+).** An older one fails to link Firebase's
         prebuilt C++ SDK: `LNK2019 unresolved external symbol __std_remove_8` /
         `__std_find_first_of_trivial_pos_1`. Update in VS Installer, then `flutter clean`.

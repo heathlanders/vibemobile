@@ -20,6 +20,7 @@ import 'features/dashboard/presentation/desktop_shell.dart';
 import 'features/notifications/data/push_service.dart';
 import 'features/pairing/presentation/pairing_screen.dart';
 import 'features/sessions/data/session_api.dart';
+import 'features/update/presentation/update_banner.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -134,7 +135,9 @@ class _Root extends ConsumerWidget {
     return creds.when(
       data: (c) {
         if (c == null) return const PairingScreen();
-        return DesktopShell.shown(context) ? DesktopShell(creds: c) : DashboardScreen(creds: c);
+        return UpdateHost(
+          child: DesktopShell.shown(context) ? DesktopShell(creds: c) : DashboardScreen(creds: c),
+        );
       },
       loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
