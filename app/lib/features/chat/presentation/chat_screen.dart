@@ -1176,6 +1176,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                 child: Builder(builder: (context) {
                   // Consecutive tool calls fold into one collapsed row.
                   final rows = groupToolRuns(_controller.messages);
+                  final gallery = galleryFromMessages(_controller.messages, widget.session.id);
                   final list = ListView.builder(
                     controller: _scroll,
                     padding: const EdgeInsets.all(Spacing.md),
@@ -1235,7 +1236,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                   );
                   // Desktop: mouse-drag selects text across messages (Ctrl+C copies).
                   // Phones keep long-press for the bubble's action sheet.
-                  return isMobile ? list : SelectionArea(child: list);
+                  return ChatGallery(sources: gallery, child: isMobile ? list : SelectionArea(child: list));
                 }),
               ),
               // Gates slide in rather than snapping the composer down.

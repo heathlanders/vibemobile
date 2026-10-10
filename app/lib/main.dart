@@ -118,6 +118,7 @@ class _VibeMobileAppState extends ConsumerState<VibeMobileApp> {
       darkTheme: AppTheme.dark,
       themeMode: ref.watch(themeModeProvider),
       home: const _Root(),
+      builder: AppTheme.capToastWidth,
     );
   }
 }

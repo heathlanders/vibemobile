@@ -61,5 +61,7 @@ its wire/schema impact so promotion to a protocol is mechanical.
 | 49 | [Desktop workspace in a non-maximized window](49-responsive-desktop.md) | `DesktopShell` chosen by platform not width; compact rail/sidebar below 1000 px | building: code + tests done 2026-10-10, Windows on-device check pending |
 | 50 | [Workflow screenshots (headless)](50-workflow-screenshots.md) | `app/screenshots/` golden-style tests, `scripts/screenshots.sh` → `docs/screenshots/`; no app code change | shipped 2026-10-10 |
 | 51 | [Release pipeline and in-app updates](51-release-pipeline.md) | `scripts/release.sh`, `release-windows.yml` (Actions), `tailscale serve --set-path /dl`, `features/update/` banner | building 2026-10-10 |
+| 52 | [Chat image gallery](52-chat-image-gallery.md) | client: `ChatGallery` (whole-chat image list), `ImageViewerScreen` arrows/keys/thumb strip, Esc + backdrop close | building 2026-10-10 |
+| 53 | [Floating toasts](53-floating-toasts.md) | client: `snackBarTheme` in `AppTheme` (floating surface card) + width cap in `MaterialApp.builder` | building 2026-10-10 |
 
 Status: `idea` → `accepted` → `building` → `shipped` (then move detail to the ADR/protocol).
