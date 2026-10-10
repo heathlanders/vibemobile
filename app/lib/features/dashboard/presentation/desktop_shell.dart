@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -16,14 +17,29 @@ import 'dashboard_screen.dart';
 
 /// Wide-window home (ADR 0015): a NavigationRail swaps the dashboard's
 /// app-bar entry points into the content area instead of pushing routes.
-/// Narrow windows keep the phone layout ([DashboardScreen]). The workspace
+/// Desktop platforms keep the shell at every width (narrow windows get the
+/// compact form, below [compactBelow]); phones and tablets keep the phone
+/// layout ([DashboardScreen]) unless the screen is wide. The workspace
 /// stays mounted while other pages show, so its tabs keep their sockets.
 class DesktopShell extends StatefulWidget {
   const DesktopShell({super.key, required this.creds});
   final Creds creds;
 
-  /// Window width at which the rail replaces the phone layout.
-  static const breakpoint = 1000.0;
+  /// Window width below which desktop windows go compact (icon-only rail,
+  /// sidebar behind a toggle, no split/changes pane). On phones and tablets it
+  /// is the width at which the rail replaces the phone layout.
+  static const compactBelow = 1000.0;
+
+  static bool get isDesktopPlatform => switch (defaultTargetPlatform) {
+        TargetPlatform.windows || TargetPlatform.linux || TargetPlatform.macOS => true,
+        _ => false,
+      };
+
+  /// Whether the shell (rather than the phone dashboard) is shown.
+  static bool shown(BuildContext context) =>
+      isDesktopPlatform || MediaQuery.sizeOf(context).width >= compactBelow;
+
+  static bool isCompact(BuildContext context) => MediaQuery.sizeOf(context).width < compactBelow;
 
   @override
   State<DesktopShell> createState() => _DesktopShellState();
@@ -54,12 +70,13 @@ class _DesktopShellState extends State<DesktopShell> {
 
   @override
   Widget build(BuildContext context) {
+    final compact = DesktopShell.isCompact(context);
     return Scaffold(
       body: Row(children: [
         NavigationRail(
           selectedIndex: _index,
           onDestinationSelected: (i) => setState(() => _index = i),
-          labelType: NavigationRailLabelType.all,
+          labelType: compact ? NavigationRailLabelType.none : NavigationRailLabelType.all,
           // Max-plan 5h/7d meters, always visible (ADR 0020); tap → Usage.
           trailingAtBottom: true,
           trailing: Padding(
