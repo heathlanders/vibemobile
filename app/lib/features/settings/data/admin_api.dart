@@ -58,6 +58,13 @@ class AdminApi {
 
   Future<void> revoke(String deviceId) => _dio.delete('/devices/$deviceId');
 
+  /// A single-use, 10-minute code for pairing another device (ADR 0029).
+  Future<({String code, DateTime expiresAt})> pairingCode() async {
+    final res = await _dio.post<Map<String, dynamic>>('/devices/pairing-code');
+    final j = res.data!;
+    return (code: j['code'] as String, expiresAt: DateTime.parse(j['expires_at'] as String));
+  }
+
   Future<List<AuditEvent>> events({String? kind, String? before, int limit = 100}) async {
     final res = await _dio.get<List<dynamic>>('/events', queryParameters: {
       'limit': limit,
