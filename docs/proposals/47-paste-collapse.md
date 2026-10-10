@@ -1,6 +1,14 @@
 # 47 — Collapse large pastes in the composer
 
-**Status:** accepted (2026-10-10, from the phone Notes inbox)
+**Status:** building: code + tests done 2026-10-10, on-device check pending
+
+**What shipped:** `domain/paste_tokens.dart` (threshold, tokens, expand, formatter),
+`presentation/paste_composer.dart` (chip controller, view sheet, folded-bubble widget), wired in
+`chat_screen.dart`. Deviations from the text above: (1) the chip is a styled `TextSpan`, and a tap is
+detected from the field's `onTap` (caret inside the token), because an editable cannot host tap
+recognizers; (2) the sheet is view-only (Expand inline / Remove / Close), no editing; (3) draft text
+is never persisted, so no sync issue; "Improve prompt" sends the expanded text. Still to do: check on
+a phone that tapping the chip reliably lands the caret inside it.
 
 A large paste currently goes into the composer as raw text: dozens of lines that push the caret off
 screen and fill the chat bubble once sent. Claude Code's terminal UI collapses a large paste into a

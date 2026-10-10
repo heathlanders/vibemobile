@@ -515,5 +515,5 @@ Five Notes, triaged into Proposals. Branch `feat/notes-2026-10`.
 - [x] **README rewrite** for the public repo: full feature list, quick start, security model.
 - [x] **Copy keeps line breaks** — bug against [proposal 06](proposals/06-message-copy.md): desktop drag-select across markdown blocks.
 - [x] **Desktop workspace in a non-maximized window** — [proposal 49](proposals/49-responsive-desktop.md).
-- [ ] **Collapse large pastes in the composer** — [proposal 47](proposals/47-paste-collapse.md).
+- [x] **Collapse large pastes in the composer** — [proposal 47](proposals/47-paste-collapse.md).
 - [x] **File paths in chat open in the app** — [proposal 48](proposals/48-chat-file-links.md).
