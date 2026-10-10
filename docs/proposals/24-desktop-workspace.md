@@ -1,6 +1,8 @@
 # 24 — Desktop workspace (session cockpit)
 
 Status: **shipped (code)**: roadmap phase 1 of [ADR 0015](../decisions/0015-desktop-client.md).
+Non-maximized windows: see [proposal 49](49-responsive-desktop.md) (2026-10-10). Below the 1000 px
+breakpoint the app currently falls back to the phone layout and the workspace is lost.
 Client only, no daemon change. It hasn't been run as a Windows build yet (that
 needs the PC).
 
