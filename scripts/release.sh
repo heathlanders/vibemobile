@@ -5,7 +5,8 @@
 #
 #   scripts/release.sh 1.0.18 [--notes "text"] [--skip-apk] [--skip-windows]
 #
-# Env: VIBE_RELEASE_DIR (default /data/volumes/vibemobile/releases), FLUTTER.
+# Env: VIBE_RELEASE_DIR (default /data/volumes/vibemobile/releases), FLUTTER,
+#      VIBE_DL_URL (default https://<this machine's MagicDNS name>/dl).
 set -euo pipefail
 
 usage() { echo "usage: $0 <x.y.z> [--notes TEXT] [--skip-apk] [--skip-windows]" >&2; exit 2; }
@@ -87,9 +88,15 @@ for pat in 'vibemobile-[0-9]*.apk' 'vibemobile-windows-*.zip'; do
   (cd "$out" && ls -1 $pat 2>/dev/null | sort -V | head -n -"$keep" | xargs -r rm -f)
 done
 
+# Windows installer for new PCs: `irm <dl>/install.ps1 | iex`.
+dl="${VIBE_DL_URL:-https://$(tailscale status --json | jq -r '.Self.DNSName' | sed 's/\.$//')/dl}"
+sed "s#__DL_URL__#$dl#" scripts/windows-install.ps1 > "$out/install.ps1"
+
 {
   echo "<!doctype html><meta charset=utf-8><title>VibeMobile releases</title>"
-  echo "<h1>VibeMobile $version</h1><p>$(jq -r '.notes' "$out/latest.json" | sed 's/&/\&amp;/g; s/</\&lt;/g')</p><ul>"
+  echo "<h1>VibeMobile $version</h1><p>$(jq -r '.notes' "$out/latest.json" | sed 's/&/\&amp;/g; s/</\&lt;/g')</p>"
+  echo "<p>New Windows PC (on the tailnet), in PowerShell:</p><pre>irm $dl/install.ps1 | iex</pre>"
+  echo "<p>Android: tap the APK below. Then pair with $(dirname "$dl") and a pairing code from the server.</p><ul>"
   for f in $(cd "$out" && ls -1 vibemobile-*.apk vibemobile-windows-*.zip 2>/dev/null | sort -rV); do
     echo "<li><a href=\"$f\">$f</a></li>"
   done
