@@ -10,6 +10,7 @@
 // Not supported on purpose: raw HTML (never interpreted — shown as text), images,
 // reference links, footnotes, setext headings.
 
+import 'file_refs.dart';
 import 'link_spans.dart';
 
 sealed class MdBlock {
@@ -191,7 +192,7 @@ List<MdBlock> parseMarkdown(String text) {
 // ---- inline ----------------------------------------------------------------------
 
 class MdInline {
-  const MdInline(this.text, {this.bold = false, this.italic = false, this.code = false, this.url});
+  const MdInline(this.text, {this.bold = false, this.italic = false, this.code = false, this.url, this.file});
   final String text;
   final bool bold;
   final bool italic;
@@ -200,11 +201,14 @@ class MdInline {
   /// Set for links: `[label](url)` or a bare http(s) URL.
   final String? url;
 
+  /// Set for file references (proposal 48); only produced when parseInline is asked for them.
+  final FileRef? file;
+
   @override
   bool operator ==(Object other) =>
-      other is MdInline && other.text == text && other.bold == bold && other.italic == italic && other.code == code && other.url == url;
+      other is MdInline && other.text == text && other.bold == bold && other.italic == italic && other.code == code && other.url == url && other.file == file;
   @override
-  int get hashCode => Object.hash(text, bold, italic, code, url);
+  int get hashCode => Object.hash(text, bold, italic, code, url, file);
   @override
   String toString() => 'MdInline($text${bold ? ' b' : ''}${italic ? ' i' : ''}${code ? ' c' : ''}${url != null ? ' ->$url' : ''})';
 }
@@ -212,14 +216,15 @@ class MdInline {
 bool _alnum(String c) => RegExp(r'[A-Za-z0-9]').hasMatch(c);
 
 /// Inline markdown -> styled runs. Adjacent runs with identical style are merged.
-List<MdInline> parseInline(String s) {
+/// With [fileRefs], paths in code runs / plain text and non-URL link targets become file runs.
+List<MdInline> parseInline(String s, {bool fileRefs = false}) {
   final out = <MdInline>[];
-  _inline(s, out, false, false);
+  _inline(s, out, false, false, fileRefs);
   final merged = <MdInline>[];
   for (final r in out) {
     if (r.text.isEmpty) continue;
     final last = merged.isEmpty ? null : merged.last;
-    if (last != null && last.url == null && r.url == null && last.bold == r.bold && last.italic == r.italic && last.code == r.code) {
+    if (last != null && last.url == null && r.url == null && last.file == null && r.file == null && last.bold == r.bold && last.italic == r.italic && last.code == r.code) {
       merged[merged.length - 1] = MdInline(last.text + r.text, bold: r.bold, italic: r.italic, code: r.code);
     } else {
       merged.add(r);
@@ -228,17 +233,23 @@ List<MdInline> parseInline(String s) {
   return merged;
 }
 
-void _plain(String text, List<MdInline> out, bool bold, bool italic) {
+void _plain(String text, List<MdInline> out, bool bold, bool italic, bool fileRefs) {
   if (text.isEmpty) return;
   for (final seg in splitLinks(text)) {
-    out.add(MdInline(seg.text, bold: bold, italic: italic, url: seg.isLink ? seg.text : null));
+    if (seg.isLink || !fileRefs) {
+      out.add(MdInline(seg.text, bold: bold, italic: italic, url: seg.isLink ? seg.text : null));
+      continue;
+    }
+    for (final f in splitFileRefs(seg.text)) {
+      out.add(MdInline(f.text, bold: bold, italic: italic, file: f.ref));
+    }
   }
 }
 
-void _inline(String s, List<MdInline> out, bool bold, bool italic) {
+void _inline(String s, List<MdInline> out, bool bold, bool italic, bool fileRefs) {
   final buf = StringBuffer();
   void emit() {
-    _plain(buf.toString(), out, bold, italic);
+    _plain(buf.toString(), out, bold, italic, fileRefs);
     buf.clear();
   }
 
@@ -265,7 +276,7 @@ void _inline(String s, List<MdInline> out, bool bold, bool italic) {
         if (code.length > 1 && code.startsWith(' ') && code.endsWith(' ') && code.trim().isNotEmpty) {
           code = code.substring(1, code.length - 1);
         }
-        out.add(MdInline(code, bold: bold, italic: italic, code: true));
+        out.add(MdInline(code, bold: bold, italic: italic, code: true, file: fileRefs ? detectFileRef(code) : null));
         i = end + n;
         continue;
       }
@@ -280,13 +291,15 @@ void _inline(String s, List<MdInline> out, bool bold, bool italic) {
         final end = s.indexOf(')', close + 2);
         if (end > close) {
           final url = s.substring(close + 2, end).trim();
-          if (RegExp(r'^https?://\S+$', caseSensitive: false).hasMatch(url)) {
+          final isUrl = RegExp(r'^https?://\S+$', caseSensitive: false).hasMatch(url);
+          final ref = !isUrl && fileRefs ? fileRefFromLinkTarget(url) : null;
+          if (isUrl || ref != null) {
             emit();
             final label = s.substring(i + 1, close);
             final inner = <MdInline>[];
-            _inline(label, inner, bold, italic);
+            _inline(label, inner, bold, italic, false);
             for (final r in inner) {
-              out.add(MdInline(r.text, bold: r.bold, italic: r.italic, code: r.code, url: url));
+              out.add(MdInline(r.text, bold: r.bold, italic: r.italic, code: r.code, url: isUrl ? url : null, file: ref));
             }
             i = end + 1;
             continue;
@@ -318,7 +331,7 @@ void _inline(String s, List<MdInline> out, bool bold, bool italic) {
           }
           if (end > i + n) {
             emit();
-            _inline(s.substring(i + n, end), out, bold || run >= 2, italic || run == 1 || run == 3);
+            _inline(s.substring(i + n, end), out, bold || run >= 2, italic || run == 1 || run == 3, fileRefs);
             i = end + n;
             continue;
           }

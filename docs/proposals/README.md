@@ -57,7 +57,7 @@ its wire/schema impact so promotion to a protocol is mechanical.
 | 45 | [Pull request & CI status](45-pr-ci-status.md) | `GET /sessions/:id/ci`, `ci.ts` (read-only `gh pr list` / `gh run list`), `CiSheet` | built 2026-10-07, on-device check pending |
 | 46 | [Read-only file browser](46-file-browser.md) | `GET /sessions/:id/browse[/file]`, `browse.ts` (root-confined, secrets/.git hidden, text-only), `FileBrowserScreen` | built 2026-10-07, on-device check pending |
 | 47 | [Collapse large pastes in the composer](47-paste-collapse.md) | client only: composer `TextInputFormatter`, chip tokens expanded on send, collapsed long user bubbles | accepted 2026-10-10 |
-| 48 | [File paths in chat open in the app](48-chat-file-links.md) | client: `FileLink` span in `link_spans.dart`/`markdown.dart` → existing `browse/file` + `FileViewerScreen`; no new daemon surface | accepted 2026-10-10 |
+| 48 | [File paths in chat open in the app](48-chat-file-links.md) | client: `FileLink` span in `link_spans.dart`/`markdown.dart` → existing `browse/file` + `FileViewerScreen`; no new daemon surface | building: code + tests done 2026-10-10, on-device check pending |
 | 49 | [Desktop workspace in a non-maximized window](49-responsive-desktop.md) | `DesktopShell` chosen by platform not width; compact rail/sidebar below 1000 px | accepted 2026-10-10 |
 
 Status: `idea` → `accepted` → `building` → `shipped` (then move detail to the ADR/protocol).
