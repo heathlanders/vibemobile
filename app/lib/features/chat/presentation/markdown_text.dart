@@ -12,9 +12,12 @@ import '../domain/markdown.dart';
 /// Links open in the external browser, never in-app (same rule as [LinkifiedText]).
 /// [trailing] (the streaming cursor) is appended to the last text block.
 class MarkdownText extends StatefulWidget {
-  const MarkdownText(this.text, {super.key, this.trailing});
+  const MarkdownText(this.text, {super.key, this.trailing, this.onOpenFile});
   final String text;
   final InlineSpan? trailing;
+
+  /// Opens a file reference in the app (proposal 48). Null = file references are not linkified.
+  final void Function(String path, int? line)? onOpenFile;
 
   @override
   State<MarkdownText> createState() => _MarkdownTextState();
@@ -40,7 +43,7 @@ class _MarkdownTextState extends State<MarkdownText> {
 
   List<InlineSpan> _spans(String text, ThemeData theme, {TextStyle? base}) {
     final out = <InlineSpan>[];
-    for (final r in parseInline(text)) {
+    for (final r in parseInline(text, fileRefs: widget.onOpenFile != null)) {
       var style = base ?? const TextStyle();
       if (r.bold) style = style.copyWith(fontWeight: FontWeight.w700);
       if (r.italic) style = style.copyWith(fontStyle: FontStyle.italic);
@@ -57,6 +60,12 @@ class _MarkdownTextState extends State<MarkdownText> {
         final uri = Uri.tryParse(r.url!);
         final t = TapGestureRecognizer()
           ..onTap = uri == null ? null : () => launchUrl(uri, mode: LaunchMode.externalApplication);
+        _recognizers.add(t);
+        rec = t;
+      } else if (r.file != null && widget.onOpenFile != null) {
+        final f = r.file!;
+        style = style.copyWith(color: theme.colorScheme.primary, decoration: TextDecoration.underline);
+        final t = TapGestureRecognizer()..onTap = () => widget.onOpenFile!(f.path, f.line);
         _recognizers.add(t);
         rec = t;
       }

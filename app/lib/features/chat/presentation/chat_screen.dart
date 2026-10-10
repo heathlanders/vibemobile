@@ -1469,24 +1469,32 @@ class _Bubble extends StatelessWidget {
           margin: const EdgeInsets.symmetric(vertical: Spacing.xs),
           padding: const EdgeInsets.all(Spacing.md),
           decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(Radii.sm)),
-          child: streaming
-              ? _text(
-                  markdown,
-                  '$text ',
-                  trailing: const WidgetSpan(
-                    alignment: PlaceholderAlignment.baseline,
-                    baseline: TextBaseline.alphabetic,
-                    child: StreamingCursor(),
-                  ),
-                )
-              : _text(markdown, text),
+          child: Builder(
+            builder: (context) => streaming
+                ? _text(
+                    context,
+                    markdown,
+                    '$text ',
+                    trailing: const WidgetSpan(
+                      alignment: PlaceholderAlignment.baseline,
+                      baseline: TextBaseline.alphabetic,
+                      child: StreamingCursor(),
+                    ),
+                  )
+                : _text(context, markdown, text),
+          ),
         ),
       );
 
   // Assistant text is markdown (domain/markdown.dart); the user's own text and
   // errors stay plain, so what you typed is shown exactly as you typed it.
-  Widget _text(bool markdown, String text, {InlineSpan? trailing}) =>
-      markdown ? MarkdownText(text, trailing: trailing) : LinkifiedText(text, trailing: trailing);
+  // File references open in the in-app viewer for this session (proposal 48).
+  Widget _text(BuildContext context, bool markdown, String text, {InlineSpan? trailing}) {
+    void open(String path, int? line) => openChatFile(context, sessionId: sessionId, creds: creds, path: path, line: line);
+    return markdown
+        ? MarkdownText(text, trailing: trailing, onOpenFile: open)
+        : LinkifiedText(text, trailing: trailing, onOpenFile: open);
+  }
 
   /// Long-press menu (proposals 06 + 11): Copy the message; Retry/Edit a user turn.
   void _showActions(BuildContext context) {

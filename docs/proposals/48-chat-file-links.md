@@ -1,6 +1,6 @@
 # 48 — File paths in chat open in the app
 
-**Status:** accepted (2026-10-10, from the phone Notes inbox)
+**Status:** building: code + tests done 2026-10-10, on-device check pending
 
 Claude often points at a file to review ("see `docs/proposals/46-file-browser.md`",
 "`src/browse.ts:42`"). Today only `http(s)` links are tappable (proposal 34, `link_spans.dart`; and
@@ -30,3 +30,16 @@ Out of scope: opening files outside the session's checkout, editing, linking to 
 
 Tests: unit tests for the path detector (positives, false positives, `:line` parsing, and that URLs
 are unaffected); a widget test that tapping a file link opens the viewer with the right path and line.
+
+## What shipped
+
+- `domain/file_refs.dart`: pure detector (`detectFileRef` for inline code, `splitFileRefs` for stricter
+  bare text, `fileRefFromLinkTarget` for `[t](target)`). Schemes (`javascript:`, `file:`, `mailto:`),
+  `www.`, `..` and TLD-only names are rejected.
+- `parseInline(..., fileRefs: true)`, `MarkdownText` and `LinkifiedText` take `onOpenFile(path, line)`;
+  with it null (default) nothing is linkified. http(s) links are unchanged.
+- `openChatFile` reads via the existing `browse/file` (current session only) and pushes
+  `FileViewerScreen`; 403/404/415 become a snackbar ("Not in this project" / "File not found" /
+  "Binary file"). The viewer takes an optional `line` and scrolls to and highlights it.
+- Desktop: the workspace has no file pane, so the viewer is pushed as on mobile.
+- Tests: `app/test/file_links_test.dart`. No daemon changes.
