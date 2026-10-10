@@ -77,21 +77,37 @@ List<String>? safeEntrySegments(String name) {
   return segs;
 }
 
-/// PowerShell that waits for [pid], mirrors [extractedDir] over [installDir]
-/// (robocopy exit codes 0-7 are success), then relaunches the app.
+/// PowerShell that waits for [pid] (and any other copy of the app running from
+/// [installDir]), mirrors [extractedDir] over [installDir] (robocopy exit codes
+/// 0-7 are success), then relaunches the app. Everything
+/// it does is transcribed to [logPath], since it runs hidden.
 String buildUpdateScript({
   required int pid,
   required String extractedDir,
   required String installDir,
   required String exeName,
+  required String logPath,
 }) {
   final exe = '${installDir.replaceAll(RegExp(r'[\\/]+$'), '')}\\$exeName';
+  final name = exeName.replaceAll(RegExp(r'\.exe$', caseSensitive: false), '');
   return [
-    r"$ErrorActionPreference = 'Stop'",
+    'Start-Transcript -Path ${psQuote(logPath)} -Force | Out-Null',
     'Wait-Process -Id $pid -ErrorAction SilentlyContinue',
-    'robocopy ${psQuote(extractedDir)} ${psQuote(installDir)} /MIR /NFL /NDL /NJH /NJS',
-    r'if ($LASTEXITCODE -gt 7) { exit $LASTEXITCODE }',
-    'Start-Process -FilePath ${psQuote(exe)}',
+    // Any other running copy of the app keeps its DLLs locked (robocopy
+    // ERROR 32): give it 20 s to exit, then close it.
+    '\$exe = ${psQuote(exe)}',
+    "function Others { Get-Process -Name ${psQuote(name)} -ErrorAction SilentlyContinue | Where-Object { \$_.Path -eq \$exe } }",
+    r'$deadline = (Get-Date).AddSeconds(20)',
+    r'while ((Others) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }',
+    r'Others | Stop-Process -Force -ErrorAction SilentlyContinue',
+    r'Start-Sleep -Seconds 1',
+    // Bounded retries: the default is a million, 30 s apart.
+    'robocopy ${psQuote(extractedDir)} ${psQuote(installDir)} /MIR /R:10 /W:1 /NFL /NDL /NJH /NJS',
+    r'$code = $LASTEXITCODE',
+    // Relaunch even if the copy failed, so the app never just disappears.
+    r'Start-Process -FilePath $exe',
+    r'Stop-Transcript',
+    r'if ($code -gt 7) { exit $code }',
     '',
   ].join('\r\n');
 }
