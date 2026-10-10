@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/platform.dart';
 import '../../../core/session_attention.dart';
 import '../../../core/token_store.dart';
 import '../../multichat/presentation/multi_chat_screen.dart';
@@ -18,8 +19,8 @@ import 'dashboard_screen.dart';
 /// Wide-window home (ADR 0015): a NavigationRail swaps the dashboard's
 /// app-bar entry points into the content area instead of pushing routes.
 /// Desktop platforms keep the shell at every width (narrow windows get the
-/// compact form, below [compactBelow]); phones and tablets keep the phone
-/// layout ([DashboardScreen]) unless the screen is wide. The workspace
+/// compact form, below [compactBelow]); phones always keep the phone
+/// layout ([DashboardScreen]); tablets only when the screen is narrow. The workspace
 /// stays mounted while other pages show, so its tabs keep their sockets.
 class DesktopShell extends StatefulWidget {
   const DesktopShell({super.key, required this.creds});
@@ -35,9 +36,12 @@ class DesktopShell extends StatefulWidget {
         _ => false,
       };
 
-  /// Whether the shell (rather than the phone dashboard) is shown.
-  static bool shown(BuildContext context) =>
-      isDesktopPlatform || MediaQuery.sizeOf(context).width >= compactBelow;
+  /// Whether the shell (rather than the phone dashboard) is shown. A phone
+  /// never gets it, even in landscape (proposal 54).
+  static bool shown(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    return isDesktopPlatform || (!isPhone(size) && size.width >= compactBelow);
+  }
 
   static bool isCompact(BuildContext context) => MediaQuery.sizeOf(context).width < compactBelow;
 
@@ -45,8 +49,58 @@ class DesktopShell extends StatefulWidget {
   State<DesktopShell> createState() => _DesktopShellState();
 }
 
+/// Hooks the running [DesktopShell] registers so the app-level mouse
+/// back/forward handler (main.dart) can drive its rail history (proposal 55).
+class DesktopNav {
+  static bool Function()? back;
+  static bool Function()? forward;
+}
+
 class _DesktopShellState extends State<DesktopShell> {
   int _index = 0;
+  final _backStack = <int>[];
+  final _forwardStack = <int>[];
+
+  @override
+  void initState() {
+    super.initState();
+    DesktopNav.back = _back;
+    DesktopNav.forward = _forward;
+  }
+
+  @override
+  void dispose() {
+    DesktopNav.back = null;
+    DesktopNav.forward = null;
+    super.dispose();
+  }
+
+  void _select(int i) {
+    if (i == _index) return;
+    setState(() {
+      _backStack.add(_index);
+      _forwardStack.clear();
+      _index = i;
+    });
+  }
+
+  bool _back() {
+    if (_backStack.isEmpty) return false;
+    setState(() {
+      _forwardStack.add(_index);
+      _index = _backStack.removeLast();
+    });
+    return true;
+  }
+
+  bool _forward() {
+    if (_forwardStack.isEmpty) return false;
+    setState(() {
+      _backStack.add(_index);
+      _index = _forwardStack.removeLast();
+    });
+    return true;
+  }
 
   late final _workspace = WorkspaceScreen(creds: widget.creds);
 
@@ -75,7 +129,7 @@ class _DesktopShellState extends State<DesktopShell> {
       body: Row(children: [
         NavigationRail(
           selectedIndex: _index,
-          onDestinationSelected: (i) => setState(() => _index = i),
+          onDestinationSelected: _select,
           labelType: compact ? NavigationRailLabelType.none : NavigationRailLabelType.all,
           // Max-plan 5h/7d meters, always visible (ADR 0020); tap → Usage.
           trailingAtBottom: true,
@@ -83,7 +137,7 @@ class _DesktopShellState extends State<DesktopShell> {
             padding: const EdgeInsets.only(bottom: 12),
             child: SizedBox(
               width: 72,
-              child: PlanUsageMeter(creds: widget.creds, onTap: () => setState(() => _index = 6)),
+              child: PlanUsageMeter(creds: widget.creds, onTap: () => _select(6)),
             ),
           ),
           destinations: [
