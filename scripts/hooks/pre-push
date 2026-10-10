@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Public repo guard. Refuses to push (1) any commit that doesn't descend from the
+# public root commit — the old private history must never reach this remote —
+# and (2) any pushed change that fails leak-scan, which also catches commits
+# made with --no-verify.
+set -euo pipefail
+here="$(dirname "$0")"
+root=a47b083
+zero=0000000000000000000000000000000000000000
+tmp=$(mktemp); trap 'rm -f "$tmp"' EXIT
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue   # branch deletion
+  if ! git merge-base --is-ancestor "$root" "$local_sha" 2>/dev/null; then
+    echo "pre-push: $local_ref is not based on the public history ($root). Refusing." >&2
+    exit 1
+  fi
+  if [ "$remote_sha" = "$zero" ]; then base="$root"; else base="$remote_sha"; fi
+  git diff -U0 --no-color "$base" "$local_sha" > "$tmp"
+  "$here/leak-scan.sh" "$tmp"
+done

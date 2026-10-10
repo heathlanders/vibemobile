@@ -9,6 +9,23 @@ use judgment.
 
 ---
 
+## This repo is public
+
+`github.com/heathlanders/vibemobile` is public; every commit is published.
+
+- Never commit machine-specific or personal details: home paths, hostnames,
+  tailnet names, IPs, emails, phone, address, account names, server layout.
+  Use placeholders (`/home/user`, `box.tailnet.ts.net`) or read them from env.
+- Handoffs and ops notes go in `docs/handoffs/` and `docs/ops/` as usual — those
+  are symlinks into the private `vibemobile-notes` repo and are gitignored.
+  Commit them there (`cd docs/handoffs && git add … && git commit && git push`).
+- `scripts/hooks/` (enable once per clone: `git config core.hooksPath scripts/hooks`)
+  blocks commits and pushes containing credentials or strings from the owner's
+  private denylist, and refuses pushes not based on the public history.
+  Never bypass it with `--no-verify`.
+
+---
+
 ## Behavioral guidelines
 
 ### 1. Think Before Coding

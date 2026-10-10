@@ -67,7 +67,7 @@ Run as a service: see [`vibe-daemon/deploy/`](vibe-daemon/deploy/) (systemd unit
 + install steps).
 
 Useful env: `VIBE_PROJECT_ROOTS` (comma-separated dirs the scanner walks,
-default `/home/user`), `PORT`, `VIBE_DB`.
+default: your home directory), `PORT`, `VIBE_DB`.
 
 ## App — run it
 

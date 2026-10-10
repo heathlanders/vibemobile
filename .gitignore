@@ -14,3 +14,7 @@ vibe-daemon/vibe.db-wal
 .DS_Store
 
 # The Flutter app/ tree has its own .gitignore (build/, .dart_tool/, etc.)
+
+# Private notes live in the vibemobile-notes repo; these are symlinks to it.
+docs/handoffs
+docs/ops

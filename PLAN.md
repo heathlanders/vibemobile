@@ -43,7 +43,7 @@ A "fully fledged" Android app to:
   resumable session id, mapped to a project cwd.
 - **PTY engine:** `node-pty`. One pseudo-terminal per terminal tab, optionally
   inside `tmux` so sessions survive daemon restarts / reconnects.
-- **Project scanner:** lists project dirs under `/home/user`, detects type
+- **Project scanner:** lists project dirs under the home directory, detects type
   (Flutter = pubspec.yaml, Laravel = artisan/composer.json, Node = package.json),
   git status, last activity.
 - **Persistence:** SQLite (`better-sqlite3`) — projects, sessions, prompt library,

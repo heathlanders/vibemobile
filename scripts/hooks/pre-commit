@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Public repo guard (see scripts/hooks/leak-scan.sh).
+set -euo pipefail
+here="$(dirname "$0")"
+if git diff --cached --name-only | grep -qE '^docs/(handoffs|ops)(/|$)'; then
+  echo "pre-commit: docs/handoffs and docs/ops are private notes — don't commit them here." >&2
+  exit 1
+fi
+tmp=$(mktemp); trap 'rm -f "$tmp"' EXIT
+git diff --cached -U0 --no-color > "$tmp"
+"$here/leak-scan.sh" "$tmp"

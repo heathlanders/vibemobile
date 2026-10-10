@@ -10,6 +10,7 @@
 // user's projects (e.g. a Flutter SDK checkout).
 
 import { randomUUID } from "node:crypto";
+import { homedir } from "node:os";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { DB } from "./db.js";
@@ -123,9 +124,9 @@ export function upsertProjects(db: DB, scanned: Project[]): unknown[] {
     .all();
 }
 
-// Roots to scan — comma-separated VIBE_PROJECT_ROOTS, else /home/user.
+// Roots to scan — comma-separated VIBE_PROJECT_ROOTS, else the home directory.
 export function projectRoots(): string[] {
-  return (process.env.VIBE_PROJECT_ROOTS ?? "/home/user")
+  return (process.env.VIBE_PROJECT_ROOTS ?? homedir())
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
