@@ -517,3 +517,4 @@ Five Notes, triaged into Proposals. Branch `feat/notes-2026-10`.
 - [x] **Desktop workspace in a non-maximized window** — [proposal 49](proposals/49-responsive-desktop.md).
 - [x] **Collapse large pastes in the composer** — [proposal 47](proposals/47-paste-collapse.md).
 - [x] **File paths in chat open in the app** — [proposal 48](proposals/48-chat-file-links.md).
+- [x] **Workflow screenshots** (phone + desktop, headless) — [proposal 50](proposals/50-workflow-screenshots.md).
