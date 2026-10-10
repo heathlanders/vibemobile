@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -83,6 +84,12 @@ class _MarkdownTextState extends State<MarkdownText> {
       return widget.trailing == null ? const SizedBox.shrink() : Text.rich(TextSpan(children: [widget.trailing!]));
     }
     final children = <Widget>[];
+    // Copy separators between the blocks that can be selected (a rule can't):
+    // a blank line, or a single newline between list items.
+    final selectable = [for (final b in blocks) if (b is! MdRule) b];
+    String sep(int i) => i >= selectable.length
+        ? ''
+        : (selectable[i] is MdListItem && selectable[i - 1] is MdListItem ? '\n' : '\n\n');
     for (var i = 0; i < blocks.length; i++) {
       final last = i == blocks.length - 1;
       final cursor = last ? widget.trailing : null;
@@ -92,7 +99,10 @@ class _MarkdownTextState extends State<MarkdownText> {
       children.add(Padding(padding: EdgeInsets.only(top: i == 0 ? 0 : Spacing.sm), child: w));
       if (needsOwnLine) children.add(Text.rich(TextSpan(children: [cursor])));
     }
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: children);
+    return _Joined(
+      separator: sep,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: children),
+    );
   }
 
   Widget _block(MdBlock b, ThemeData theme, InlineSpan? cursor) {
@@ -110,10 +120,13 @@ class _MarkdownTextState extends State<MarkdownText> {
         final marker = b.number != null ? '${b.number}.' : (b.depth == 0 ? '•' : '◦');
         return Padding(
           padding: EdgeInsets.only(left: b.depth * 16.0),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            SizedBox(width: 24, child: Text(marker)),
-            Expanded(child: _rich(b.text, theme, cursor)),
-          ]),
+          child: _Joined(
+            separator: (_) => ' ',
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              SizedBox(width: 24, child: Text(marker)),
+              Expanded(child: _rich(b.text, theme, cursor)),
+            ]),
+          ),
         );
       case MdQuote():
         return Container(
@@ -169,24 +182,27 @@ class _CodeBlock extends StatelessWidget {
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(
-          padding: const EdgeInsets.only(left: Spacing.sm),
-          child: Row(children: [
-            Expanded(child: Text(lang, style: theme.textTheme.labelSmall)),
-            if (closed)
-              IconButton(
-                tooltip: 'Copy code',
-                visualDensity: VisualDensity.compact,
-                iconSize: 16,
-                icon: const Icon(Icons.copy_outlined),
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: code));
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Code copied')));
-                },
-              )
-            else
-              const SizedBox(height: 28),
-          ]),
+        // The header (language, copy button) isn't part of a copied selection.
+        SelectionContainer.disabled(
+          child: Padding(
+            padding: const EdgeInsets.only(left: Spacing.sm),
+            child: Row(children: [
+              Expanded(child: Text(lang, style: theme.textTheme.labelSmall)),
+              if (closed)
+                IconButton(
+                  tooltip: 'Copy code',
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 16,
+                  icon: const Icon(Icons.copy_outlined),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: code));
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Code copied')));
+                  },
+                )
+              else
+                const SizedBox(height: 28),
+            ]),
+          ),
         ),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -195,5 +211,49 @@ class _CodeBlock extends StatelessWidget {
         ),
       ]),
     );
+  }
+}
+
+/// Groups its selectable children into one selectable whose copied text joins
+/// theirs with [separator] (called with the index of the later child), so
+/// drag-select copy keeps the line breaks between blocks (proposal 06).
+class _Joined extends StatefulWidget {
+  const _Joined({required this.separator, required this.child});
+  final String Function(int index) separator;
+  final Widget child;
+
+  @override
+  State<_Joined> createState() => _JoinedState();
+}
+
+class _JoinedState extends State<_Joined> {
+  late final _delegate = _JoinDelegate(this);
+
+  @override
+  void dispose() {
+    _delegate.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SelectionContainer(delegate: _delegate, child: widget.child);
+}
+
+class _JoinDelegate extends StaticSelectionContainerDelegate {
+  _JoinDelegate(this._owner);
+  final _JoinedState _owner;
+
+  @override
+  SelectedContent? getSelectedContent() {
+    final buffer = StringBuffer();
+    var any = false;
+    for (var i = 0; i < selectables.length; i++) {
+      final c = selectables[i].getSelectedContent();
+      if (c == null) continue;
+      if (any) buffer.write(_owner.widget.separator(i));
+      buffer.write(c.plainText);
+      any = true;
+    }
+    return any ? SelectedContent(plainText: buffer.toString()) : null;
   }
 }

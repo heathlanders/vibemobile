@@ -40,3 +40,11 @@ Windows, Linux plugins).
 one `SelectionArea`, and a markdown bubble is a column of separate block widgets (paragraphs, list
 items, code), so the selected text can lose the newlines between blocks. Fix plan: reproduce it in a
 widget test first, then make block boundaries copy as `\n` in `markdown_text.dart`.
+
+**Fixed 2026-10-10.** Confirmed by a widget test: selecting all and copying gave `one\ntwothree` and
+`Title•a•bend`, and code blocks dropped out. `markdown_text.dart` now wraps a bubble's blocks in a
+small selection container (`_Joined`) that joins the copied text with a blank line between blocks, a
+single newline between list items, and a space between a list marker and its text. The code block
+header is excluded. Known limit: cells inside a table (which scrolls horizontally) still copy run
+together (`ab12`). A container nested inside the scroller never registers, so this needs its own fix.
+Tests: `app/test/markdown_copy_test.dart`.
