@@ -111,3 +111,13 @@ String buildUpdateScript({
     '',
   ].join('\r\n');
 }
+
+/// Batch file that starts update.ps1 (in the same dir) in its own minimised
+/// console. The app launches this through cmd.exe: a console-less PowerShell
+/// started straight from the app never ran the update on a real PC.
+String buildUpdateLauncher() => [
+      '@echo off',
+      r'start "VibeMobile update" /min "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" '
+          r'-NoProfile -ExecutionPolicy Bypass -File "%~dp0update.ps1"',
+      '',
+    ].join('\r\n');

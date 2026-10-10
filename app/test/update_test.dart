@@ -76,4 +76,11 @@ void main() {
     // Relaunch comes before the failure exit, so a failed copy still reopens the app.
     expect(s.indexOf(r'Start-Process -FilePath $exe'), lessThan(s.indexOf(r'if ($code -gt 7)')));
   });
+
+  test('launcher starts update.ps1 from its own dir in a minimised console', () {
+    final s = buildUpdateLauncher();
+    expect(s, startsWith('@echo off'));
+    expect(s, contains(r'start "VibeMobile update" /min "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"'));
+    expect(s, contains(r'-File "%~dp0update.ps1"'));
+  });
 }

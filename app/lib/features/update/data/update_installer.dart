@@ -64,20 +64,20 @@ class UpdateInstaller {
 
     final exeName = Platform.resolvedExecutable.split(RegExp(r'[\\/]')).last;
     if (!File('${out.path}$sep$exeName').existsSync()) throw Exception('archive has no $exeName');
-    final script = File('${tmp.path}${sep}update.ps1')
-      ..writeAsStringSync(buildUpdateScript(
+    // update.cmd starts update.ps1 by name from the same dir.
+    File('${tmp.path}${sep}update.ps1').writeAsStringSync(
+      buildUpdateScript(
         pid: pid,
         extractedDir: out.path,
         installDir: installDir,
         exeName: exeName,
         logPath: '${tmp.path}${sep}update.log',
-      ));
-    await Process.start(
-      'powershell',
-      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', script.path],
-      mode: ProcessStartMode.detached,
+      ),
     );
-    AppLog.info('update: handed off to ${script.path}');
+    final launcher = File('${tmp.path}${sep}update.cmd')..writeAsStringSync(buildUpdateLauncher());
+    final systemRoot = Platform.environment['SystemRoot'] ?? r'C:\Windows';
+    await Process.start('$systemRoot\\System32\\cmd.exe', ['/c', launcher.path], mode: ProcessStartMode.detached);
+    AppLog.info('update: handed off to ${launcher.path}');
     exit(0);
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -16,15 +18,21 @@ class UpdateHost extends ConsumerStatefulWidget {
 }
 
 class _UpdateHostState extends ConsumerState<UpdateHost> with WidgetsBindingObserver {
+  // Desktop apps stay open for days and rarely see a "resumed" event, so also
+  // re-check hourly while running.
+  Timer? _hourly;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     Future.microtask(() => ref.read(updateProvider.notifier).check());
+    _hourly = Timer.periodic(const Duration(hours: 1), (_) => ref.read(updateProvider.notifier).check());
   }
 
   @override
   void dispose() {
+    _hourly?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
