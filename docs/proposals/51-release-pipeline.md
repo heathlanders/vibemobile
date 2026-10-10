@@ -39,4 +39,10 @@ renamed by hand and sideloaded, and the Windows app was built on the PC and copi
   - **Settings** shows the version at the bottom right, with a **Check for updates** button that
     reports the result or the error. The automatic check stays silent.
 
+- **New Windows PC:** `release.sh` also publishes `install.ps1`, from `scripts/windows-install.ps1`
+  with the download URL filled in, and the download page shows how to run it:
+  `irm https://<machine>.<tailnet>.ts.net/dl/install.ps1 | iex`. It downloads the latest zip, checks
+  its sha256, unpacks it into `%LOCALAPPDATA%\VibeMobile`, adds a Start menu shortcut and launches
+  the app. No admin needed, and running it again reinstalls.
+
 Out of scope: auto-update without a click, signed Windows installer (MSIX/Inno), release channels.
