@@ -4,6 +4,7 @@ import 'package:archive/archive_io.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../../core/app_log.dart';
 import '../domain/update_info.dart';
 import 'update_api.dart';
 
@@ -64,12 +65,19 @@ class UpdateInstaller {
     final exeName = Platform.resolvedExecutable.split(RegExp(r'[\\/]')).last;
     if (!File('${out.path}$sep$exeName').existsSync()) throw Exception('archive has no $exeName');
     final script = File('${tmp.path}${sep}update.ps1')
-      ..writeAsStringSync(buildUpdateScript(pid: pid, extractedDir: out.path, installDir: installDir, exeName: exeName));
+      ..writeAsStringSync(buildUpdateScript(
+        pid: pid,
+        extractedDir: out.path,
+        installDir: installDir,
+        exeName: exeName,
+        logPath: '${tmp.path}${sep}update.log',
+      ));
     await Process.start(
       'powershell',
       ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', script.path],
       mode: ProcessStartMode.detached,
     );
+    AppLog.info('update: handed off to ${script.path}');
     exit(0);
   }
 }

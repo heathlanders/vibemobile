@@ -32,5 +32,11 @@ renamed by hand and sideloaded, and the Windows app was built on the PC and copi
     script. The script waits for the app to exit, `robocopy /MIR`s into the install dir and
     relaunches. This needs a user-writable install, so the app moves to
     `%LOCALAPPDATA%\VibeMobile`. Under `Program Files`, the banner links the zip instead.
+    The script also waits for any other running copy of the app, closing it after 20 s;
+    a second instance held DLLs locked and robocopy retried forever. Robocopy retries are
+    bounded, the app is relaunched even if the copy fails, and everything is
+    transcribed to `update.log` in the script's temp dir.
+  - **Settings** shows the version at the bottom right, with a **Check for updates** button that
+    reports the result or the error. The automatic check stays silent.
 
 Out of scope: auto-update without a click, signed Windows installer (MSIX/Inno), release channels.

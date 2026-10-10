@@ -65,10 +65,15 @@ void main() {
       extractedDir: r"C:\Temp\it's\extracted",
       installDir: r'C:\Apps\VibeMobile',
       exeName: 'vibemobile.exe',
+      logPath: r'C:\Temp\update.log',
     );
+    expect(s, startsWith(r"Start-Transcript -Path 'C:\Temp\update.log' -Force"));
     expect(s, contains('Wait-Process -Id 42 -ErrorAction SilentlyContinue'));
-    expect(s, contains(r"robocopy 'C:\Temp\it''s\extracted' 'C:\Apps\VibeMobile' /MIR /NFL /NDL /NJH /NJS"));
-    expect(s, contains(r'if ($LASTEXITCODE -gt 7)'));
-    expect(s, contains(r"Start-Process -FilePath 'C:\Apps\VibeMobile\vibemobile.exe'"));
+    expect(s, contains(r"$exe = 'C:\Apps\VibeMobile\vibemobile.exe'"));
+    expect(s, contains(r"Get-Process -Name 'vibemobile'"));
+    expect(s, contains(r'Others | Stop-Process -Force'));
+    expect(s, contains(r"robocopy 'C:\Temp\it''s\extracted' 'C:\Apps\VibeMobile' /MIR /R:10 /W:1 /NFL /NDL /NJH /NJS"));
+    // Relaunch comes before the failure exit, so a failed copy still reopens the app.
+    expect(s.indexOf(r'Start-Process -FilePath $exe'), lessThan(s.indexOf(r'if ($code -gt 7)')));
   });
 }

@@ -39,6 +39,12 @@ const _keep = Object();
 
 final updateApiProvider = Provider<UpdateApi>((ref) => UpdateApi());
 
+/// "1.0.19 (build 20)" for the Settings footer.
+final appVersionProvider = FutureProvider<String>((ref) async {
+  final p = await PackageInfo.fromPlatform();
+  return '${p.version} (build ${p.buildNumber})';
+});
+
 final updateProvider = NotifierProvider<UpdateController, UpdateState>(UpdateController.new);
 
 class UpdateController extends Notifier<UpdateState> {
@@ -56,23 +62,46 @@ class UpdateController extends Notifier<UpdateState> {
 
   /// Launch/resume check, at most hourly. Silent on failure.
   Future<void> check({DateTime? now}) async {
-    final platform = _platform;
-    final creds = await ref.read(credsProvider.future);
-    if (platform == null || creds == null) return;
     final t = now ?? DateTime.now();
     if (_lastCheck != null && t.difference(_lastCheck!) < _every) return;
     _lastCheck = t;
     try {
-      final info = await ref.read(updateApiProvider).latest(creds.baseUrl);
-      final current = int.tryParse((await PackageInfo.fromPlatform()).buildNumber) ?? 0;
-      if (info == null || !info.isAvailable(current, platform)) return;
-      state = state.copyWith(
-        info: info,
-        manualWindows: platform == 'windows' && UpdateInstaller.writableWindowsInstallDir() == null,
-      );
+      await _fetch();
     } catch (e) {
-      AppLog.info('update check failed: ${e.runtimeType}');
+      AppLog.info('update check failed: ${e.runtimeType} $e');
     }
+  }
+
+  /// Settings' "Check for updates": ignores the hourly limit, re-shows a
+  /// dismissed banner, and returns a line for the user (errors included).
+  Future<String> checkNow() async {
+    _lastCheck = DateTime.now();
+    try {
+      final info = await _fetch();
+      if (info == null) return 'Up to date';
+      state = state.copyWith(dismissedBuild: 0);
+      return 'Update ${info.version} available';
+    } catch (e) {
+      AppLog.info('update check failed: ${e.runtimeType} $e');
+      return 'Update check failed: $e';
+    }
+  }
+
+  /// The newer release for this platform (also put in [state]), or null.
+  Future<UpdateInfo?> _fetch() async {
+    final platform = _platform;
+    final creds = await ref.read(credsProvider.future);
+    if (platform == null) throw Exception('updates are only for Android and Windows');
+    if (creds == null) throw Exception('not paired');
+    final info = await ref.read(updateApiProvider).latest(creds.baseUrl);
+    if (info == null) throw Exception('no release feed at ${latestJsonUrl(creds.baseUrl)}');
+    final current = int.tryParse((await PackageInfo.fromPlatform()).buildNumber) ?? 0;
+    if (!info.isAvailable(current, platform)) return null;
+    state = state.copyWith(
+      info: info,
+      manualWindows: platform == 'windows' && UpdateInstaller.writableWindowsInstallDir() == null,
+    );
+    return info;
   }
 
   void dismiss() {

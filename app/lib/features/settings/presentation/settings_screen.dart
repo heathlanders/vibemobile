@@ -15,6 +15,7 @@ import '../../sessions/data/task_model_prefs.dart';
 import '../../sessions/domain/task_profile.dart';
 import '../../sessions/presentation/model_picker.dart';
 import '../../system/presentation/system_screen.dart';
+import '../../update/presentation/update_controller.dart';
 import 'audit_log_screen.dart';
 import 'devices_screen.dart';
 import '../../schedules/presentation/schedules_screen.dart';
@@ -135,6 +136,36 @@ class SettingsScreen extends ConsumerWidget {
             leading: Icon(Icons.logout, color: scheme.error),
             title: Text('Sign out', style: TextStyle(color: scheme.error)),
             onTap: () => _signOut(context, ref),
+          ),
+          const _VersionFooter(),
+        ],
+      ),
+    );
+  }
+}
+
+/// App version, bottom right, with a manual update check (proposal 51).
+class _VersionFooter extends ConsumerWidget {
+  const _VersionFooter();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final style = Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
+    final version = ref.watch(appVersionProvider).value;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.sm, Spacing.sm, Spacing.lg),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Text('VibeMobile ${version ?? ''}', style: style),
+          const SizedBox(width: Spacing.sm),
+          TextButton(
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final msg = await ref.read(updateProvider.notifier).checkNow();
+              messenger.showSnackBar(SnackBar(content: Text(msg)));
+            },
+            child: const Text('Check for updates'),
           ),
         ],
       ),
