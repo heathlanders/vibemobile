@@ -103,7 +103,7 @@ class SettingsScreen extends ConsumerWidget {
           ListTile(
             leading: const Icon(Icons.devices_other_outlined),
             title: const Text('Paired devices'),
-            subtitle: const Text('Revoke a lost or unused device'),
+            subtitle: const Text('Add a new device, or revoke a lost one'),
             onTap: () => Navigator.of(context).push(sharedAxisRoute(DevicesScreen(creds: creds))),
           ),
           ListTile(

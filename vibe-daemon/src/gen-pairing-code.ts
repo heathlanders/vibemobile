@@ -5,9 +5,10 @@
 //   npm run pair:new
 
 import { openDb } from "./db.js";
-import { createPairingCode } from "./auth.js";
+import { createPairingCode, logEvent } from "./auth.js";
 
 const db = openDb();
 const code = createPairingCode(db);
+logEvent(db, "pair.code", null, "server");
 const pretty = `${code.slice(0, 4)}-${code.slice(4)}`;
 console.log(`\n  Pairing code:  ${pretty}\n  Single use, expires in 10 minutes.\n`);

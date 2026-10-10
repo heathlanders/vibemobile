@@ -7,7 +7,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import websocket from "@fastify/websocket";
 import type { DB } from "./db.js";
-import { authenticate, pairDevice, logEvent, type Device } from "./auth.js";
+import { authenticate, createPairingCode, pairDevice, logEvent, PAIR_TTL_MIN, type Device } from "./auth.js";
 import { scanProjects, upsertProjects, projectRoots } from "./scanner.js";
 import { realTmux, type Tmux } from "./tmux.js";
 import { registerSessionRoutes } from "./sessions.js";
@@ -161,12 +161,31 @@ export async function buildApp(
     return rows;
   });
 
+  // Pair a new device from an already-paired one (security #3b, ADR 0029): the
+  // same single-use, 10-minute code `npm run pair:new` prints at the server.
+  // Auth-gated (never add to PUBLIC) and audited with the issuing device, so a
+  // code always traces back to who minted it. Rate-limited like /pair.
+  app.post(
+    "/devices/pairing-code",
+    { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
+    async (req, reply) => {
+      const me = (req as { device?: Device }).device?.id;
+      if (!me) return reply.code(401).send({ error: "unauthorized" });
+      const code = createPairingCode(db, PAIR_TTL_MIN, me);
+      logEvent(db, "pair.code", me, "");
+      const expires_at = new Date(Date.now() + PAIR_TTL_MIN * 60_000).toISOString();
+      return reply.code(201).send({ code: `${code.slice(0, 4)}-${code.slice(4)}`, expires_at });
+    },
+  );
+
   // Per-device revoke (security #4): delete the row → its token stops resolving.
   app.delete("/devices/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
     const info = db.prepare("DELETE FROM devices WHERE id = ?").run(id);
     if (info.changes === 0) return reply.code(404).send({ error: "not found" });
-    logEvent(db, "device.revoked", id, "");
+    // Codes a lost device minted die with it, or they'd outlive the revoke (ADR 0029).
+    db.prepare("UPDATE pairing_codes SET used = 1 WHERE issued_by = ? AND used = 0").run(id);
+    logEvent(db, "device.revoked", id, `by ${(req as { device?: Device }).device?.id ?? "unknown"}`);
     return reply.code(204).send();
   });
 

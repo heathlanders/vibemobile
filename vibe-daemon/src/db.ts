@@ -279,6 +279,8 @@ function migrate(db: DB): void {
   // Prompt library usage (ADR 0018): "most used" sort.
   if (!has("prompts", "use_count")) db.exec("ALTER TABLE prompts ADD COLUMN use_count INTEGER NOT NULL DEFAULT 0");
   if (!has("prompts", "last_used_at")) db.exec("ALTER TABLE prompts ADD COLUMN last_used_at TEXT");
+  // ADR 0029: which device minted a code (NULL = the server terminal).
+  if (!has("pairing_codes", "issued_by")) db.exec("ALTER TABLE pairing_codes ADD COLUMN issued_by TEXT");
   // The audit-log viewer (GET /events) pages by ts descending.
   db.exec("CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts)");
 }

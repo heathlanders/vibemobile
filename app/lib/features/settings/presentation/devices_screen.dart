@@ -6,6 +6,7 @@ import '../../../core/spacing.dart';
 import '../../../core/token_store.dart';
 import '../../../core/widgets.dart';
 import '../data/admin_api.dart';
+import 'pair_device_dialog.dart';
 
 /// Paired devices, with revoke (security.md #4). Until now "lost phone → kill
 /// token" meant SSH-ing to the box; this is the same `DELETE /devices/:id` from
@@ -56,6 +57,14 @@ class _DevicesScreenState extends ConsumerState<DevicesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Paired devices')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          await showDialog<void>(context: context, builder: (_) => PairDeviceDialog(creds: widget.creds, api: _api));
+          if (mounted) _reload(); // the new device shows up once it has paired
+        },
+        icon: const Icon(Icons.add_link),
+        label: const Text('Pair a new device'),
+      ),
       body: RefreshIndicator(
         onRefresh: () async => _reload(),
         child: FutureBuilder<List<PairedDevice>>(

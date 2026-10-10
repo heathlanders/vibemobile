@@ -70,6 +70,49 @@ test("revoked device token stops working", async () => {
   assert.equal((await app.inject({ method: "GET", url: "/devices", headers })).statusCode, 401);
 });
 
+test("a paired device can mint a pairing code that pairs another device", async () => {
+  const { db, app } = await setup();
+  const { token, device_id } = (await pair(app, createPairingCode(db))).json();
+  const res = await app.inject({ method: "POST", url: "/devices/pairing-code", headers: { authorization: `Bearer ${token}` } });
+  assert.equal(res.statusCode, 201);
+  const { code, expires_at } = res.json();
+  assert.match(code, /^[0-9]{4}-[0-9]{4}$/);
+  assert.ok(new Date(expires_at).getTime() > Date.now());
+  assert.equal((await pair(app, code, "laptop")).statusCode, 201);
+  assert.equal((await pair(app, code, "again")).statusCode, 401); // single-use
+  const ev = db.prepare("SELECT device_id FROM events WHERE kind = 'pair.code'").get() as { device_id: string };
+  assert.equal(ev.device_id, device_id); // audited with the issuer
+  const paired = db.prepare("SELECT detail FROM events WHERE kind = 'device.paired' AND detail LIKE 'laptop%'").get() as { detail: string };
+  assert.equal(paired.detail, `laptop (code from ${device_id})`); // new device traces to its issuer
+});
+
+test("revoking a device kills the pairing codes it minted", async () => {
+  const { db, app } = await setup();
+  const a = (await pair(app, createPairingCode(db), "phone")).json();
+  const b = (await pair(app, createPairingCode(db), "pc")).json();
+  const { code } = (
+    await app.inject({ method: "POST", url: "/devices/pairing-code", headers: { authorization: `Bearer ${a.token}` } })
+  ).json();
+  const del = await app.inject({ method: "DELETE", url: `/devices/${a.device_id}`, headers: { authorization: `Bearer ${b.token}` } });
+  assert.equal(del.statusCode, 204);
+  assert.equal((await pair(app, code, "thief")).statusCode, 401);
+  const ev = db.prepare("SELECT detail FROM events WHERE kind = 'device.revoked'").get() as { detail: string };
+  assert.equal(ev.detail, `by ${b.device_id}`); // the revoker is on record
+});
+
+test("minting pairing codes is rate-limited", async () => {
+  const { db, app } = await setup();
+  const { token } = (await pair(app, createPairingCode(db))).json();
+  const mint = () => app.inject({ method: "POST", url: "/devices/pairing-code", headers: { authorization: `Bearer ${token}` } });
+  for (let i = 0; i < 5; i++) assert.equal((await mint()).statusCode, 201);
+  assert.equal((await mint()).statusCode, 429);
+});
+
+test("minting a pairing code requires auth", async () => {
+  const { app } = await setup();
+  assert.equal((await app.inject({ method: "POST", url: "/devices/pairing-code" })).statusCode, 401);
+});
+
 test("health is public", async () => {
   const { app } = await setup();
   assert.equal((await app.inject({ method: "GET", url: "/health" })).statusCode, 200);
