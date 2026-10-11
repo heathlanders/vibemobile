@@ -17,3 +17,12 @@ class Note {
         done: j['done'] == true,
       );
 }
+
+/// The draft for "Build in chat" (proposal 57): the open notes as a work list, with
+/// the inbox workflow (capture in docs, build, tick off). The user edits it before sending.
+String buildNotesPrompt(Iterable<Note> open) {
+  final items = open.map((n) => '- ${n.text.trim().replaceAll('\n', '\n  ')}').join('\n');
+  return 'Build these open notes from this project\'s Notes. For each one: capture it in the '
+      'project\'s docs (a Proposal or Milestone), implement and test it, then tick it off with '
+      'resolve_note.\n\n$items';
+}

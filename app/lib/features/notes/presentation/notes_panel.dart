@@ -5,7 +5,10 @@ import '../../../core/providers.dart';
 import '../../../core/spacing.dart';
 import '../../../core/token_store.dart';
 import '../../../core/widgets.dart';
+import '../../chat/presentation/chat_screen.dart';
+import '../../sessions/data/session_api.dart';
 import '../../sessions/domain/session.dart';
+import '../../sessions/presentation/model_picker.dart';
 import '../data/note_api.dart';
 import '../domain/note.dart';
 
@@ -113,6 +116,25 @@ class _NotesPanelState extends State<NotesPanel> {
     }
   }
 
+  /// Proposal 57: a new chat in this project, its composer pre-filled with the open
+  /// notes. Nothing is sent until the user sends it.
+  Future<void> _buildInChat() async {
+    final open = (_notes ?? const <Note>[]).where((n) => !n.done).toList();
+    if (open.isEmpty) return;
+    final sessions = SessionApi(dioFor(widget.creds));
+    final choice = await chooseModel(context, sessions);
+    if (choice == null || !mounted) return;
+    try {
+      final s = await sessions.create(widget.project.id, kind: 'claude', model: choice.id);
+      if (!mounted) return;
+      final nav = Navigator.of(context);
+      nav.pop(); // close the notes sheet / dialog
+      nav.push(sharedAxisRoute(ChatScreen(creds: widget.creds, session: s, initialDraft: buildNotesPrompt(open))));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not start a chat: $e')));
+    }
+  }
+
   Future<void> _edit(Note n) async {
     final ctrl = TextEditingController(text: n.text);
     final text = await showDialog<String>(
@@ -142,12 +164,18 @@ class _NotesPanelState extends State<NotesPanel> {
     final theme = Theme.of(context);
     return Column(children: [
       Padding(
-        padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.sm, Spacing.lg, 0),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Text('Notes · ${widget.project.label}',
-              style: theme.textTheme.titleMedium, overflow: TextOverflow.ellipsis),
-        ),
+        padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.sm, Spacing.sm, 0),
+        child: Row(children: [
+          Expanded(
+            child: Text('Notes · ${widget.project.label}',
+                style: theme.textTheme.titleMedium, overflow: TextOverflow.ellipsis),
+          ),
+          TextButton.icon(
+            icon: const Icon(Icons.play_arrow_outlined, size: 18),
+            label: const Text('Build in chat'),
+            onPressed: (_notes ?? const <Note>[]).any((n) => !n.done) ? _buildInChat : null,
+          ),
+        ]),
       ),
       Padding(
         padding: const EdgeInsets.all(Spacing.lg),

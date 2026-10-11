@@ -1353,6 +1353,22 @@ class _Bubble extends StatelessWidget {
     if (message.role == ChatRole.result) return const SizedBox.shrink();
     final scheme = Theme.of(context).colorScheme;
     Widget content = _content(context, scheme);
+    if (message.role == ChatRole.user || message.role == ChatRole.assistant) {
+      final user = message.role == ChatRole.user;
+      content = Column(
+        crossAxisAlignment: user ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          content,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Spacing.xs),
+            child: Text(
+              fmtMessageTime(message.at, DateTime.now()),
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(color: scheme.outline),
+            ),
+          ),
+        ],
+      );
+    }
     if (message.superseded) content = Opacity(opacity: 0.5, child: content);
     if (!isMobile) {
       // Desktop: right-click for the actions; left-drag belongs to SelectionArea.
