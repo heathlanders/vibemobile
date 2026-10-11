@@ -1,6 +1,6 @@
 # 54 — Phone layout: portrait, Discord-style navigation
 
-**Status:** building 2026-10-10
+**Status:** shipped 2026-10-10 (v1.0.24)
 
 From the user, on a real phone: the app showed the desktop layout, with a fixed rail plus the
 workspace sidebar, cramped and overlapping. The user wants portrait only, just the important
