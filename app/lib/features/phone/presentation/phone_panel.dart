@@ -31,6 +31,7 @@ class PhonePanel extends ConsumerWidget {
     required this.onOpen,
     required this.onCreate,
     required this.onNewProject,
+    required this.onNotes,
     required this.onRefresh,
   });
 
@@ -46,6 +47,7 @@ class PhonePanel extends ConsumerWidget {
   final void Function(Session) onOpen;
   final PhoneCreate onCreate;
   final VoidCallback onNewProject;
+  final void Function(Project) onNotes;
   final Future<void> Function() onRefresh;
 
   @override
@@ -111,7 +113,7 @@ class PhonePanel extends ConsumerWidget {
                     title: selected == phoneLiveId ? 'Live' : (project?.label ?? ''),
                     subtitle: selected == phoneLiveId ? 'Running or waiting for you' : project?.gitBranch,
                   ),
-                  if (project != null) _Actions(presets: presets, onCreate: onCreate),
+                  if (project != null) _Actions(presets: presets, onCreate: onCreate, onNotes: () => onNotes(project)),
                   const Divider(height: 1),
                   Expanded(child: _list(context, attention, project)),
                 ],
@@ -265,9 +267,10 @@ class _Header extends StatelessWidget {
 }
 
 class _Actions extends StatelessWidget {
-  const _Actions({required this.presets, required this.onCreate});
+  const _Actions({required this.presets, required this.onCreate, required this.onNotes});
   final List<AgentPreset> presets;
   final PhoneCreate onCreate;
+  final VoidCallback onNotes;
 
   @override
   Widget build(BuildContext context) {
@@ -297,6 +300,7 @@ class _Actions extends StatelessWidget {
               onSelected: (p) => onCreate('terminal', preset: p.id),
               itemBuilder: (_) => [for (final p in presets) PopupMenuItem(value: p, child: Text(p.label))],
             ),
+          IconButton(tooltip: 'Notes', icon: const Icon(Icons.sticky_note_2_outlined), onPressed: onNotes),
         ],
       ),
     );
