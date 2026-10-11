@@ -18,7 +18,8 @@ class ChatMessage {
     this.superseded = false,
     this.ts,
     this.serverId,
-  });
+    DateTime? at,
+  }) : at = at ?? (ts == null ? null : DateTime.tryParse(ts)?.toLocal()) ?? DateTime.now();
 
   /// The daemon's `messages.id` for a user turn — what "rewind files to here"
   /// sends (ADR 0023). From `history` rows, or a `user_ack` frame for a turn
@@ -28,6 +29,10 @@ class ChatMessage {
   /// Server timestamp, set on rows replayed from `history` (null on live
   /// frames). Lets a search hit (proposal 10) find its exact bubble.
   final String? ts;
+
+  /// When the message was written (proposal 57): the server [ts] for replayed
+  /// rows, otherwise when this client first saw it. Local time.
+  final DateTime at;
 
   final ChatRole role;
   String text;
@@ -164,4 +169,16 @@ class UserDialog {
   List<Map<String, dynamic>> get questions => ((payload['questions'] as List?) ?? const [])
       .map((q) => (q as Map).cast<String, dynamic>())
       .toList();
+}
+
+const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/// Bubble timestamp (proposal 57): "14:03:22" today, "Oct 9 14:03:22" on another
+/// day this year, "Oct 9 2025 14:03:22" in another year.
+String fmtMessageTime(DateTime at, DateTime now) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  final time = '${two(at.hour)}:${two(at.minute)}:${two(at.second)}';
+  if (at.year == now.year && at.month == now.month && at.day == now.day) return time;
+  final date = '${_months[at.month - 1]} ${at.day}${at.year == now.year ? '' : ' ${at.year}'}';
+  return '$date $time';
 }
