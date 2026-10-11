@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:vibemobile/features/usage/presentation/usage_screen.dart';
 import 'package:vibemobile/core/session_attention.dart';
 import 'package:vibemobile/features/chat/presentation/chat_controller_pool.dart';
 import 'package:vibemobile/features/chat/presentation/chat_screen.dart';
@@ -162,12 +163,17 @@ void main() {
     expect(find.text('New chat'), findsNothing);
   });
 
-  testWidgets('empty content, search and You', (tester) async {
+  testWidgets('empty content, search, Usage and You', (tester) async {
     await pumpShell(tester);
     await tester.tap(find.text('Search'));
     await load(tester);
     expect(find.byType(SessionSearchScreen), findsOneWidget);
     Navigator.of(tester.element(find.byType(SessionSearchScreen))).pop();
+    await load(tester);
+    await tester.tap(find.text('Usage'));
+    await load(tester);
+    expect(find.byType(UsageScreen), findsOneWidget);
+    Navigator.of(tester.element(find.byType(UsageScreen))).pop();
     await load(tester);
     await tester.tap(find.text('You'));
     await load(tester);
