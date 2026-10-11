@@ -65,5 +65,6 @@ its wire/schema impact so promotion to a protocol is mechanical.
 | 53 | [Floating toasts](53-floating-toasts.md) | client: `snackBarTheme` in `AppTheme` (floating surface card) + width cap in `MaterialApp.builder` | shipped 2026-10-10 (v1.0.22) |
 | 54 | [Phone layout: portrait, Discord-style navigation](54-phone-layout.md) | client: phones never get `DesktopShell`, portrait lock, `PhoneShell` (swipe panel: project rail + session list, bottom bar) | shipped 2026-10-10 (v1.0.24) |
 | 55 | [Mouse back/forward on desktop](55-mouse-back-forward.md) | client: rail history in `DesktopShell`, `Listener` in `MaterialApp.builder` (mouse 4/5) | shipped 2026-10-10 (v1.0.24), on-device check pending |
+| 56 | [Inbox batch: multi-image, panel fit, update prompt, scroll button, resolve_note](56-inbox-batch-oct11.md) | client: `pickMultiImage`, `PhonePanel` header icons, `UpdateDialog`, chat list `Stack`; daemon: `resolve_note` in `peer-tools.ts` | building 2026-10-11, on-device check pending |
 
 Status: `idea` → `accepted` → `building` → `shipped` (then move detail to the ADR/protocol).

@@ -11,7 +11,7 @@ thing isn't one of these, it isn't a file.
 | **Decision** | An accepted, hard-to-reverse choice (ADR): context, decision, consequences. | `docs/decisions/NNNN-title.md` | Immutable; supersede, don't edit |
 | **Spike** | A throwaway experiment: question, exact re-run command, findings. | `docs/spikes/NN-title.md` | Immutable once written |
 | **Task list** | The live checklist Claude keeps *during* one session. | Not a file (the session's todo list) | Gone when the session ends |
-| **Inbox** | Unsorted ideas captured on the phone (the project's *Notes*). Triage turns each into a Proposal, a Milestone, a Task, or deletes it. Not a file in the repo. | VibeMobile → project → Notes; Claude reads it with `list_notes` | Until triaged |
+| **Inbox** | Unsorted ideas captured on the phone (the project's *Notes*). Triage turns each into a Proposal, a Milestone, a Task, or deletes it. Not a file in the repo. | VibeMobile → project → Notes; Claude reads it with `list_notes` and ticks a note off with `resolve_note` once it is in the docs | Until triaged |
 | **Handoff** | End-of-session note for the next session: done, not done, next step, gotchas. | `docs/handoffs/YYYY-MM-DD-slug.md` | Written once; newest wins |
 
 **"Plan" means one thing:** the steps Claude proposes for a single task in plan mode, for

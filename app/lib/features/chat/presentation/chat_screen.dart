@@ -844,22 +844,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     setState(_pending.clear);
   }
 
-  /// Pick an image, downscale on-device (≤1568px long edge — Claude's cap), and
-  /// upload it. The returned id is parked in [_pending] until the next send.
+  /// Pick images (several from the gallery, one from the camera), downscale
+  /// on-device (≤1568px long edge — Claude's cap), and upload them. The returned
+  /// ids are parked in [_pending] until the next send.
   Future<void> _attach(ImageSource source) async {
-    final XFile? file;
+    final List<XFile> files;
     try {
-      file = await _picker.pickImage(
-        source: source,
-        maxWidth: 1568,
-        maxHeight: 1568,
-        imageQuality: 85,
-      );
+      if (source == ImageSource.gallery) {
+        files = await _picker.pickMultiImage(maxWidth: 1568, maxHeight: 1568, imageQuality: 85);
+      } else {
+        final file = await _picker.pickImage(source: source, maxWidth: 1568, maxHeight: 1568, imageQuality: 85);
+        files = [?file];
+      }
     } catch (_) {
       return; // permission denied / no camera — nothing to surface
     }
-    if (file == null) return;
-    await _uploadBytes(await file.readAsBytes());
+    for (final f in files) {
+      await _uploadBytes(await f.readAsBytes());
+    }
   }
 
   /// Desktop Ctrl/Cmd+V. The clipboard read is async, so the key is always
@@ -1132,20 +1134,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
           IconButton(tooltip: 'Close session', icon: const Icon(Icons.close), onPressed: _close),
         ],
       ),
-      floatingActionButton: AnimatedSwitcher(
-        duration: Motion.fast,
-        switchInCurve: Motion.enter,
-        switchOutCurve: Motion.exit,
-        transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
-        child: _atBottom
-            ? const SizedBox.shrink()
-            : _ScrollDownButton(
-                key: ValueKey(_controller.pendingPermission != null || _controller.pendingDialog != null),
-                unread: _unread,
-                approval: _controller.pendingPermission != null || _controller.pendingDialog != null,
-                onPressed: _jumpToBottom,
-              ),
-      ),
       body: ListenableBuilder(
         listenable: _controller,
         builder: (context, _) {
@@ -1180,7 +1168,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                   ),
                 ),
               Expanded(
-                child: Builder(builder: (context) {
+                child: Stack(children: [
+                  Builder(builder: (context) {
                   // Consecutive tool calls fold into one collapsed row.
                   final rows = groupToolRuns(_controller.messages);
                   final gallery = galleryFromMessages(_controller.messages, widget.session.id);
@@ -1244,7 +1233,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                   // Desktop: mouse-drag selects text across messages (Ctrl+C copies).
                   // Phones keep long-press for the bubble's action sheet.
                   return ChatGallery(sources: gallery, child: isMobile ? list : SelectionArea(child: list));
-                }),
+                  }),
+                  // Jump to the newest message: bottom centre of the chat area, above the composer.
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: Spacing.md,
+                    child: Center(
+                      child: AnimatedSwitcher(
+                        duration: Motion.fast,
+                        switchInCurve: Motion.enter,
+                        switchOutCurve: Motion.exit,
+                        transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+                        child: _atBottom
+                            ? const SizedBox.shrink()
+                            : _ScrollDownButton(
+                                key: ValueKey(_controller.pendingPermission != null || _controller.pendingDialog != null),
+                                unread: _unread,
+                                approval: _controller.pendingPermission != null || _controller.pendingDialog != null,
+                                onPressed: _jumpToBottom,
+                              ),
+                      ),
+                    ),
+                  ),
+                ]),
               ),
               // Gates slide in rather than snapping the composer down.
               _gateSwitcher(

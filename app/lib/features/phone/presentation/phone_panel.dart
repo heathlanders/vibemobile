@@ -112,8 +112,23 @@ class PhonePanel extends ConsumerWidget {
                   _Header(
                     title: selected == phoneLiveId ? 'Live' : (project?.label ?? ''),
                     subtitle: selected == phoneLiveId ? 'Running or waiting for you' : project?.gitBranch,
+                    actions: [
+                      if (project != null && presets.isNotEmpty)
+                        PopupMenuButton<AgentPreset>(
+                          tooltip: 'Start an agent CLI',
+                          icon: const Icon(Icons.rocket_launch_outlined),
+                          onSelected: (p) => onCreate('terminal', preset: p.id),
+                          itemBuilder: (_) => [for (final p in presets) PopupMenuItem(value: p, child: Text(p.label))],
+                        ),
+                      if (project != null)
+                        IconButton(
+                          tooltip: 'Notes',
+                          icon: const Icon(Icons.sticky_note_2_outlined),
+                          onPressed: () => onNotes(project),
+                        ),
+                    ],
                   ),
-                  if (project != null) _Actions(presets: presets, onCreate: onCreate, onNotes: () => onNotes(project)),
+                  if (project != null) _Actions(onCreate: onCreate),
                   const Divider(height: 1),
                   Expanded(child: _list(context, attention, project)),
                 ],
@@ -245,21 +260,29 @@ class _RailItem extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.title, this.subtitle});
+  const _Header({required this.title, this.subtitle, this.actions = const []});
   final String title;
   final String? subtitle;
+  final List<Widget> actions;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.md, Spacing.lg, Spacing.sm),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.md, Spacing.sm, Spacing.sm),
+      child: Row(
         children: [
-          Text(title, style: theme.textTheme.titleLarge, maxLines: 1, overflow: TextOverflow.ellipsis),
-          if (subtitle != null)
-            Text(subtitle!, style: theme.textTheme.bodySmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: theme.textTheme.titleLarge, maxLines: 1, overflow: TextOverflow.ellipsis),
+                if (subtitle != null)
+                  Text(subtitle!, style: theme.textTheme.bodySmall, maxLines: 1, overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+          ...actions,
         ],
       ),
     );
@@ -267,40 +290,38 @@ class _Header extends StatelessWidget {
 }
 
 class _Actions extends StatelessWidget {
-  const _Actions({required this.presets, required this.onCreate, required this.onNotes});
-  final List<AgentPreset> presets;
+  const _Actions({required this.onCreate});
   final PhoneCreate onCreate;
-  final VoidCallback onNotes;
 
   @override
   Widget build(BuildContext context) {
+    // Small label and padding so "New chat" / "Terminal" fit the narrow panel without wrapping.
+    final style = FilledButton.styleFrom(
+      textStyle: Theme.of(context).textTheme.labelMedium,
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.sm),
+      visualDensity: VisualDensity.compact,
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(Spacing.md, 0, Spacing.md, Spacing.sm),
       child: Row(
         children: [
           Expanded(
             child: FilledButton.tonalIcon(
-              icon: const Icon(Icons.smart_toy_outlined, size: 18),
+              icon: const Icon(Icons.smart_toy_outlined, size: 16),
               label: const Text('New chat'),
+              style: style,
               onPressed: () => onCreate('claude'),
             ),
           ),
           const SizedBox(width: Spacing.sm),
           Expanded(
             child: FilledButton.tonalIcon(
-              icon: const Icon(Icons.terminal, size: 18),
+              icon: const Icon(Icons.terminal, size: 16),
               label: const Text('Terminal'),
+              style: style,
               onPressed: () => onCreate('terminal'),
             ),
           ),
-          if (presets.isNotEmpty)
-            PopupMenuButton<AgentPreset>(
-              tooltip: 'Start an agent CLI',
-              icon: const Icon(Icons.rocket_launch_outlined),
-              onSelected: (p) => onCreate('terminal', preset: p.id),
-              itemBuilder: (_) => [for (final p in presets) PopupMenuItem(value: p, child: Text(p.label))],
-            ),
-          IconButton(tooltip: 'Notes', icon: const Icon(Icons.sticky_note_2_outlined), onPressed: onNotes),
         ],
       ),
     );

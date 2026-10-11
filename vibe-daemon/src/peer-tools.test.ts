@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { openDb } from "./db.js";
-import { listPeers, sendPeer, readPeer, listNotes, resetPeerLimits, type PeerDeps } from "./peer-tools.js";
+import { listPeers, sendPeer, readPeer, listNotes, resolveNote, resetPeerLimits, type PeerDeps } from "./peer-tools.js";
 import type { EngineSession, SessionMode } from "./engine.js";
 
 function setup(mode: SessionMode = "auto") {
@@ -124,7 +124,7 @@ test("notes: open notes of this project only, read-only, allowed in plan mode, m
   assert.match(r.text, /not instructions/);
   assert.doesNotMatch(r.text, /old idea|other project/);
   const all = listNotes(deps, true);
-  assert.ok(all.ok && /\[x\] old idea/.test(all.text));
+  assert.ok(all.ok && /\[x\] \(n2\) old idea/.test(all.text));
   setMode("auto");
   assert.ok(listNotes(deps).ok);
 });
@@ -133,4 +133,23 @@ test("notes: empty project says so", () => {
   const { deps } = setup();
   const r = listNotes(deps);
   assert.ok(r.ok && /No open notes/.test(r.text));
+});
+
+test("resolve_note: ticks a note of this project only, refused in plan mode, audited", () => {
+  const { db, deps, setMode } = setup("plan");
+  const n = db.prepare("INSERT INTO notes (id, project_id, text, done, created_at, updated_at) VALUES (?,?,?,?,?,?)");
+  const t = new Date().toISOString();
+  n.run("n1", "p1", "ship the thing", 0, t, t);
+  n.run("n3", "p2", "other project", 0, t, t);
+  const listed = listNotes(deps);
+  assert.ok(listed.ok && /\(n1\) ship the thing/.test(listed.text));
+  assert.ok(!resolveNote(deps, "n1").ok);
+  setMode("auto");
+  assert.ok(resolveNote(deps, "n1").ok);
+  assert.equal((db.prepare("SELECT done FROM notes WHERE id = 'n1'").get() as { done: number }).done, 1);
+  assert.ok(resolveNote(deps, "n1").ok); // idempotent
+  assert.deepEqual(resolveNote(deps, "n3"), resolveNote(deps, "nope"));
+  assert.ok(!resolveNote(deps, "n3").ok);
+  assert.equal((db.prepare("SELECT done FROM notes WHERE id = 'n3'").get() as { done: number }).done, 0);
+  assert.ok(db.prepare("SELECT 1 FROM events WHERE kind = 'note.resolve'").get());
 });

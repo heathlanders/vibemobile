@@ -7,8 +7,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/spacing.dart';
 import 'update_controller.dart';
 
-/// Wraps the signed-in shell: checks for updates on launch/resume and shows a
-/// dismissible strip above it. [child] keeps its place in the tree either way.
+/// Wraps the signed-in shell: checks for updates on launch/resume and asks
+/// "Update now?" in a dialog when one is found.
 class UpdateHost extends ConsumerStatefulWidget {
   const UpdateHost({super.key, required this.child});
   final Widget child;
@@ -21,11 +21,16 @@ class _UpdateHostState extends ConsumerState<UpdateHost> with WidgetsBindingObse
   // Desktop apps stay open for days and rarely see a "resumed" event, so also
   // re-check hourly while running.
   Timer? _hourly;
+  bool _asking = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Ask once per newly found update; Later (dismiss) and Settings' "Check for updates" re-arm it.
+    ref.listenManual(updateProvider.select((s) => s.visible), (was, now) {
+      if (now && was != true) _ask();
+    });
     Future.microtask(() => ref.read(updateProvider.notifier).check());
     _hourly = Timer.periodic(const Duration(hours: 1), (_) => ref.read(updateProvider.notifier).check());
   }
@@ -42,19 +47,19 @@ class _UpdateHostState extends ConsumerState<UpdateHost> with WidgetsBindingObse
     if (s == AppLifecycleState.resumed) ref.read(updateProvider.notifier).check();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final visible = ref.watch(updateProvider.select((s) => s.visible));
-    return Column(children: [
-      if (visible) const Material(child: SafeArea(bottom: false, child: UpdateBanner())),
-      // The banner already sits under the status bar; don't pad it twice.
-      Expanded(child: MediaQuery.removePadding(context: context, removeTop: visible, child: widget.child)),
-    ]);
+  Future<void> _ask() async {
+    if (_asking || !mounted) return;
+    _asking = true;
+    await showDialog<void>(context: context, barrierDismissible: false, builder: (_) => const UpdateDialog());
+    _asking = false;
   }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
-class UpdateBanner extends ConsumerWidget {
-  const UpdateBanner({super.key});
+class UpdateDialog extends ConsumerWidget {
+  const UpdateDialog({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -70,18 +75,26 @@ class UpdateBanner extends ConsumerWidget {
     } else if (s.error != null) {
       text = s.error!;
     } else {
-      text = 'Update ${info.version} available${info.notes.isEmpty ? '' : ' - ${info.notes}'}';
+      text = info.notes.isEmpty ? 'Update now?' : '${info.notes}\n\nUpdate now?';
     }
 
-    return MaterialBanner(
-      content: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(text, maxLines: 3, overflow: TextOverflow.ellipsis),
-        if (busy) Padding(padding: const EdgeInsets.only(top: Spacing.sm), child: LinearProgressIndicator(value: s.progress)),
+    return AlertDialog(
+      title: Text('Update ${info.version} available'),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(text),
+        if (busy) Padding(padding: const EdgeInsets.only(top: Spacing.md), child: LinearProgressIndicator(value: s.progress)),
       ]),
       actions: [
-        if (!busy) TextButton(onPressed: ctl.dismiss, child: const Text('Dismiss')),
-        if (!busy && s.manualWindows)
+        if (!busy)
           TextButton(
+            onPressed: () {
+              ctl.dismiss();
+              Navigator.pop(context);
+            },
+            child: const Text('Later'),
+          ),
+        if (!busy && s.manualWindows)
+          FilledButton(
             onPressed: () async {
               final u = await ctl.manualUrl();
               if (u != null) await launchUrl(u, mode: LaunchMode.externalApplication);
@@ -89,7 +102,15 @@ class UpdateBanner extends ConsumerWidget {
             child: const Text('Download'),
           )
         else if (!busy)
-          TextButton(onPressed: ctl.install, child: Text(s.error != null ? 'Retry' : 'Update')),
+          FilledButton(
+            onPressed: () async {
+              await ctl.install();
+              // Installer handed off: close. Otherwise stay open to show the error (Retry) or Download.
+              final after = ref.read(updateProvider);
+              if (context.mounted && after.error == null && !after.manualWindows) Navigator.pop(context);
+            },
+            child: Text(s.error != null ? 'Retry' : 'Update now'),
+          ),
       ],
     );
   }
