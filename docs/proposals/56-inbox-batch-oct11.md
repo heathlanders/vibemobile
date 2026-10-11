@@ -2,7 +2,7 @@
 
 **Status:** building 2026-10-11; on-device check pending
 
-Four items from the project's Notes, plus a way to clear the Notes once triaged.
+Five items from the project's Notes, plus a way to clear the Notes once triaged.
 
 - **Several images at once (mobile).** "Photo library" in the chat composer uses
   `pickMultiImage`; each image is downscaled and uploaded as before and all of them ride on the
@@ -18,6 +18,10 @@ Four items from the project's Notes, plus a way to clear the Notes once triaged.
   Download button.
 - **Scroll-to-bottom button centred.** It sits at the bottom centre of the message list, above the
   composer, instead of the Scaffold's bottom-right FAB slot.
+- **Plan usage on the phone bottom bar** (added after v1.0.26). A 48 px strip on top of the
+  panel's bottom bar shows the 5h and 7d meters side by side (`PlanUsageMeter(row: true)`, reset
+  time on the label line); tapping it opens Usage. Like every dense meter it renders nothing when
+  the daemon has no plan data.
 - **`resolve_note` (vibe-peers).** Once a note's idea is in the project's docs (a Proposal or
   Milestone), Claude ticks it off with `resolve_note(note_id)`. It marks the note done rather than
   deleting it, so it stays visible (and untickable) in the app's Done section. `list_notes` now

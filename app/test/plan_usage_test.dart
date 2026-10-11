@@ -79,4 +79,31 @@ void main() {
     expect(find.text('5h'), findsNothing);
     await tester.pumpWidget(const SizedBox()); // dispose → poll timer cancelled
   });
+
+  testWidgets('row meter: 5h and 7d side by side fit the phone bottom-bar strip', (tester) async {
+    const creds = Creds('http://127.0.0.1:1', 't');
+    final soon = DateTime.now().add(const Duration(hours: 2));
+    final data = PlanUsage(
+      usage: SessionUsage(
+        session: UsageLimit(label: 'Session', pct: 45, resetsAt: soon),
+        weekly: [UsageLimit(label: 'All models', pct: 12, resetsAt: soon)],
+      ),
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: SizedBox(
+            width: 360,
+            height: 48, // PhoneShell._usageHeight
+            child: Center(child: PlanUsageMeter(creds: creds, row: true, onTap: () {}, api: _FakeApi(data))),
+          ),
+        ),
+      ),
+    ));
+    await tester.pump();
+    final h5 = find.textContaining('5h · '), d7 = find.textContaining('7d · ');
+    expect(tester.getTopLeft(d7).dx, greaterThan(tester.getTopLeft(h5).dx + 100));
+    expect(tester.getTopLeft(d7).dy, tester.getTopLeft(h5).dy);
+    await tester.pumpWidget(const SizedBox());
+  });
 }

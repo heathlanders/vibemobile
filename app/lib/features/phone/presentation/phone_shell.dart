@@ -14,6 +14,8 @@ import '../../sessions/domain/session.dart';
 import '../../sessions/presentation/model_picker.dart';
 import '../../sessions/presentation/session_search_screen.dart';
 import '../../terminal/presentation/terminal_screen.dart';
+import '../../usage/presentation/plan_usage_meter.dart';
+import '../../usage/presentation/usage_screen.dart';
 import '../data/phone_prefs.dart';
 import 'phone_panel.dart';
 import 'you_screen.dart';
@@ -33,7 +35,8 @@ class PhoneShell extends ConsumerStatefulWidget {
 }
 
 class _PhoneShellState extends ConsumerState<PhoneShell> with SingleTickerProviderStateMixin {
-  static const _barHeight = 64.0;
+  static const _barHeight = 64.0 + _usageHeight;
+  static const _usageHeight = 48.0; // plan-usage strip on top of the nav bar
 
   late final SessionApi _api = SessionApi(dioFor(widget.creds));
   late final AnimationController _slide = AnimationController(vsync: this, value: 1); // 1 = panel open
@@ -296,28 +299,55 @@ class _PhoneShellState extends ConsumerState<PhoneShell> with SingleTickerProvid
                         bottom: 0,
                         child: FractionalTranslation(
                           translation: Offset(0, 1 - v),
-                          child: NavigationBar(
-                            height: _barHeight,
-                            selectedIndex: _selected == phoneLiveId ? 1 : 0,
-                            onDestinationSelected: _onBar,
-                            destinations: [
-                              const NavigationDestination(
-                                icon: Icon(Icons.home_outlined),
-                                selectedIcon: Icon(Icons.home),
-                                label: 'Home',
-                              ),
-                              NavigationDestination(
-                                icon: FlashingBadge(count: attention.length, child: const Icon(Icons.bolt_outlined)),
-                                selectedIcon: FlashingBadge(count: attention.length, child: const Icon(Icons.bolt)),
-                                label: 'Live',
-                              ),
-                              const NavigationDestination(icon: Icon(Icons.search), label: 'Search'),
-                              const NavigationDestination(
-                                icon: Icon(Icons.person_outline),
-                                selectedIcon: Icon(Icons.person),
-                                label: 'You',
-                              ),
-                            ],
+                          child: Material(
+                            color: scheme.surfaceContainer,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  height: _usageHeight,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: Spacing.md),
+                                    child: Center(
+                                      child: PlanUsageMeter(
+                                        creds: widget.creds,
+                                        row: true,
+                                        onTap: () => _push(UsageScreen(creds: widget.creds)),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                NavigationBar(
+                                  height: _barHeight - _usageHeight,
+                                  selectedIndex: _selected == phoneLiveId ? 1 : 0,
+                                  onDestinationSelected: _onBar,
+                                  destinations: [
+                                    const NavigationDestination(
+                                      icon: Icon(Icons.home_outlined),
+                                      selectedIcon: Icon(Icons.home),
+                                      label: 'Home',
+                                    ),
+                                    NavigationDestination(
+                                      icon: FlashingBadge(
+                                        count: attention.length,
+                                        child: const Icon(Icons.bolt_outlined),
+                                      ),
+                                      selectedIcon: FlashingBadge(
+                                        count: attention.length,
+                                        child: const Icon(Icons.bolt),
+                                      ),
+                                      label: 'Live',
+                                    ),
+                                    const NavigationDestination(icon: Icon(Icons.search), label: 'Search'),
+                                    const NavigationDestination(
+                                      icon: Icon(Icons.person_outline),
+                                      selectedIcon: Icon(Icons.person),
+                                      label: 'You',
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
