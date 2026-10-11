@@ -1,6 +1,6 @@
 # 55 — Mouse back/forward on desktop
 
-**Status:** building 2026-10-10
+**Status:** shipped 2026-10-10 (v1.0.24); mouse 4/5 not yet confirmed on a device
 
 From the inbox: "the mouse4 and mouse5 (back and forward in browsers) should go back and forth to
 the last screen that was used in the desktop app."
