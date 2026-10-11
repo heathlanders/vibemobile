@@ -12,14 +12,12 @@ import '../domain/plan_usage.dart';
 /// Always-on Max-plan meters (ADR 0020): the rolling 5-hour window and the
 /// weekly limits, each with an even-burn tick so "am I using what I pay for"
 /// reads at a glance. [dense] = the rail/strip form (5h + 7d all-models only);
-/// otherwise every weekly limit with its pace hint. [row] lays the dense meters
-/// side by side (the phone's bottom bar). Renders nothing while the
+/// otherwise every weekly limit with its pace hint. Renders nothing while the
 /// daemon has no data — never a fake number.
 class PlanUsageMeter extends StatefulWidget {
-  const PlanUsageMeter({super.key, required this.creds, this.dense = true, this.row = false, this.onTap, this.api});
+  const PlanUsageMeter({super.key, required this.creds, this.dense = true, this.onTap, this.api});
   final Creds creds;
   final bool dense;
-  final bool row;
   final VoidCallback? onTap;
 
   /// Test seam; defaults to the paired daemon.
@@ -79,7 +77,6 @@ class _PlanUsageMeterState extends State<PlanUsageMeter> {
           window: sessionWindow,
           now: now,
           dense: widget.dense,
-          inline: widget.row,
         ),
       for (final w in widget.dense ? usage.weekly.take(1) : usage.weekly)
         _Meter(
@@ -88,16 +85,11 @@ class _PlanUsageMeterState extends State<PlanUsageMeter> {
           window: weeklyWindow,
           now: now,
           dense: widget.dense,
-          inline: widget.row,
         ),
     ];
     final at = _data?.fetchedAt;
     final stale = at != null && now.difference(at) > const Duration(minutes: 15);
-    final body = widget.row
-        ? Row(children: [
-            for (final (i, r) in rows.indexed) ...[if (i > 0) const SizedBox(width: Spacing.lg), Expanded(child: r)],
-          ])
-        : Column(
+    final body = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -124,14 +116,12 @@ class _Meter extends StatelessWidget {
     required this.window,
     required this.now,
     required this.dense,
-    this.inline = false,
   });
   final UsageLimit limit;
   final String title;
   final Duration window;
   final DateTime now;
   final bool dense;
-  final bool inline; // reset time on the title line, not below the bar
 
   @override
   Widget build(BuildContext context) {
@@ -162,11 +152,7 @@ class _Meter extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Flexible(
-                child: Text(
-                  inline && reset != '' ? '$title · $reset' : title,
-                  style: dense ? small : t.textTheme.bodyMedium,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                child: Text(title, style: dense ? small : t.textTheme.bodyMedium, overflow: TextOverflow.ellipsis),
               ),
               Text('${limit.pct.round()}%', style: small),
             ],
@@ -196,7 +182,7 @@ class _Meter extends StatelessWidget {
               ),
             ),
           ),
-          if (reset != '' && !inline) ...[const SizedBox(height: 2), Text(dense ? reset : 'Resets in $reset', style: muted)],
+          if (reset != '') ...[const SizedBox(height: 2), Text(dense ? reset : 'Resets in $reset', style: muted)],
           if (!dense && paceText != null)
             Text(
               paceText,
