@@ -109,7 +109,7 @@ export class ClaudeSession implements EngineSession {
   private mode: SessionMode;
   private effort: EffortLevel | null = null; // null = the model's default
   private lastContext: ContextFrame | null = null; // newest context-window reading (proposal 40)
-  private rulesApplied = false; // did THIS session start with the daemon's rules appended (ADR 0026)?
+  private rulesApplied: string[] | null = null; // rule names THIS session started with (ADR 0026/0031); null = none
   private commands: CommandInfo[] | null = null; // skills / slash commands (proposal 41)
   // Set by session-ws.ts when the session is created: enables the session-to-session
   // tools (peer-tools.ts, proposal 30). Null (tests, spikes) → no peer tools.
@@ -164,8 +164,8 @@ export class ClaudeSession implements EngineSession {
     // Daemon-wide session rules (ADR 0026) ride on the Claude Code preset, so the
     // project's own CLAUDE.md still loads alongside them (M10 spike). Read at every
     // (re)start: a change applies to sessions started after it.
-    const rules = rulesForPrompt(this.db);
-    this.rulesApplied = rules !== null;
+    const rules = rulesForPrompt(this.db, (this.db.prepare("SELECT project_id FROM sessions WHERE id = ?").get(this.id) as { project_id: string | null } | undefined)?.project_id ?? null);
+    this.rulesApplied = rules?.names ?? null;
     const q = this.queryFn({
       prompt: this.input(),
       options: {
@@ -175,7 +175,7 @@ export class ClaudeSession implements EngineSession {
         // Back up files before edits so rewind() can restore them (ADR 0023).
         enableFileCheckpointing: true,
         effort: this.effort ?? undefined,
-        systemPrompt: rules ? { type: "preset", preset: "claude_code", append: rules } : undefined,
+        systemPrompt: rules ? { type: "preset", preset: "claude_code", append: rules.text } : undefined,
         thinking: showThinking() ? { type: "adaptive", display: "summarized" } : undefined,
         canUseTool: this.canUseTool,
         onUserDialog: this.onUserDialog,
@@ -297,7 +297,7 @@ export class ClaudeSession implements EngineSession {
 
   // `rules`: whether the daemon's session rules were appended when this session started.
   private contextFrame(c: ContextFrame): Record<string, unknown> {
-    return { t: "context", ...c, rules: this.rulesApplied };
+    return { t: "context", ...c, rules: this.rulesApplied !== null, ruleNames: this.rulesApplied ?? [] };
   }
 
   // Read the window usage (summary: ~20 ms, no per-category token-count calls) and send it

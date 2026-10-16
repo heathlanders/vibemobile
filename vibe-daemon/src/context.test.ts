@@ -122,6 +122,7 @@ function make(opts: Opts = {}) {
   const db = openDb(":memory:");
   db.prepare("INSERT INTO projects (id, path, name, type) VALUES ('p','/tmp','p','unknown')").run();
   db.prepare("INSERT INTO sessions (id, project_id, kind, status, created_at) VALUES ('s','p','claude','live',?)").run(new Date().toISOString());
+  if (opts.rules === false) db.prepare("UPDATE prompts SET always_apply = 0").run(); // the seeded packs count as rules too
   if (opts.rules === false) db.prepare("INSERT INTO settings (key, value, updated_at) VALUES ('rules.enabled', 'false', ?)").run(new Date().toISOString());
   const ws = fakeWs();
   const s = new ClaudeSession(db, "s", "/tmp", queryFn as any);
@@ -146,6 +147,7 @@ test("the context frame says whether the daemon's session rules were applied to 
   on.s.pushUser("hi");
   await waitFor(() => on.ws.frames.some((f: any) => f.t === "context"));
   assert.equal(on.ws.frames.find((f: any) => f.t === "context").rules, true, "rules are on by default");
+  assert.deepEqual(on.ws.frames.find((f: any) => f.t === "context").ruleNames, ["Storage rules", "Ambition (Rieseberg)", "Karpathy guidelines"]);
   assert.equal(on.ws.frames.find((f: any) => f.t === "context").memoryFiles[0].type, "Project");
 
   const off = make({ rules: false });

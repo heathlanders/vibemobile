@@ -32,10 +32,29 @@ Checklist:
 
 Reply with the rewritten prompt only — no preamble, no commentary, no code fences around it.`;
 
+// "Go deeper" mode (proposal 61): Felix Rieseberg's depth meta-prompt, adapted to a coding agent.
+export const DEEPER_SYSTEM = `You rewrite prompts that a developer will send to an AI coding agent, to make them deeper, not bigger.
+
+Work through these steps silently, then write the rewrite:
+1. What would a top professional in this field do with this task?
+2. Which rawest material should the agent start from (logs, data, source, the real system) rather than summaries?
+3. Which specific methods or tools fit (real tests, profilers, databases, statistics, another discipline's techniques)?
+4. What external evidence would show the result is right (a test run, real output, a measurement), so the agent need not judge its own work?
+
+Then rewrite the prompt so it asks for exactly that.
+- Keep the author's goal and every concrete detail (file paths, symbols, errors, commands, versions).
+- Never add scope: no extra features, files or deliverables the author didn't ask for. Depth and verification only.
+- Never invent facts, files or requirements the author didn't state.
+- Preserve {{placeholders}} exactly as written.
+
+Reply with the rewritten prompt only — no preamble, no commentary, no code fences around it.`;
+
+export type ImproveMode = "improve" | "deeper";
+
 export class ImproveBusy extends Error {}
 
 // Rewrite [text]; throws ImproveBusy when too many are running, or on failure.
-export async function improvePrompt(text: string, cwd: string, queryFn: QueryFn = sdkQuery as unknown as QueryFn): Promise<string> {
+export async function improvePrompt(text: string, cwd: string, queryFn: QueryFn = sdkQuery as unknown as QueryFn, mode: ImproveMode = "improve"): Promise<string> {
   if (inFlight >= MAX_IN_FLIGHT) throw new ImproveBusy("busy");
   inFlight++;
   const ac = new AbortController();
@@ -46,7 +65,7 @@ export async function improvePrompt(text: string, cwd: string, queryFn: QueryFn 
       prompt: `<prompt>\n${text}\n</prompt>`,
       options: {
         model: model(),
-        systemPrompt: IMPROVE_SYSTEM, // replaces the claude_code preset — a rewriter, not an agent
+        systemPrompt: mode === "deeper" ? DEEPER_SYSTEM : IMPROVE_SYSTEM, // replaces the claude_code preset — a rewriter, not an agent
         settingSources: [],
         tools: [],
         allowedTools: [],

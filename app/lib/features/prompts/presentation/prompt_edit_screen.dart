@@ -31,6 +31,7 @@ class _PromptEditScreenState extends State<PromptEditScreen> {
 
   List<Project> _projects = [];
   String? _projectId; // null = global
+  bool _alwaysApply = false;
   bool _saving = false;
   String? _error;
 
@@ -38,6 +39,8 @@ class _PromptEditScreenState extends State<PromptEditScreen> {
   void initState() {
     super.initState();
     _projectId = widget.existing?.projectId;
+    _alwaysApply = widget.existing?.alwaysApply ?? false;
+    _body.addListener(() => setState(() {}));
     SessionApi(dioFor(widget.creds)).projects().then((p) {
       if (mounted) setState(() => _projects = p);
     });
@@ -65,9 +68,16 @@ class _PromptEditScreenState extends State<PromptEditScreen> {
     try {
       final tags = _tags.text.trim();
       if (widget.existing != null) {
-        await _api.update(widget.existing!.id, {'title': title, 'body': body, 'tags': tags, 'project_id': _projectId});
+        await _api.update(widget.existing!.id, {'title': title, 'body': body, 'tags': tags, 'project_id': _projectId,
+          'always_apply': _alwaysApply && extractVars(body).isEmpty});
       } else {
-        await _api.create(title: title, body: body, tags: tags.isEmpty ? null : tags, projectId: _projectId);
+        await _api.create(
+          title: title,
+          body: body,
+          tags: tags.isEmpty ? null : tags,
+          projectId: _projectId,
+          alwaysApply: _alwaysApply && extractVars(body).isEmpty,
+        );
       }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
@@ -79,6 +89,7 @@ class _PromptEditScreenState extends State<PromptEditScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final hasVars = extractVars(_body.text).isNotEmpty;
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.existing == null ? 'New prompt' : 'Edit prompt'),
@@ -133,6 +144,19 @@ class _PromptEditScreenState extends State<PromptEditScreen> {
               for (final p in _projects) DropdownMenuItem(value: p.id, child: Text(p.label)),
             ],
             onChanged: (v) => setState(() => _projectId = v),
+          ),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Apply to every session'),
+            subtitle: Text(
+              hasVars
+                  ? 'Not available while the body has {{vars}}.'
+                  : 'Appended to the system prompt of new chats ${_projectId == null ? 'in every project' : 'in this project'}. '
+                      'Running chats keep what they started with.',
+            ),
+            value: _alwaysApply && !hasVars,
+            onChanged: hasVars ? null : (v) => setState(() => _alwaysApply = v),
           ),
           if (_error != null) ...[
             const SizedBox(height: 16),

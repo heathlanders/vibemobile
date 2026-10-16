@@ -121,7 +121,9 @@ class ContextSheet extends StatelessWidget {
                 Expanded(
                   child: Text(
                     usage.rulesApplied!
-                        ? 'Server storage rules: applied to this chat'
+                        ? (usage.ruleNames.isEmpty
+                            ? 'Server storage rules: applied to this chat'
+                            : 'Server rules applied: ${usage.ruleNames.join(', ')}')
                         : 'Server storage rules: not applied (off, or this chat started before they were enabled)',
                     style: theme.textTheme.bodyMedium,
                   ),

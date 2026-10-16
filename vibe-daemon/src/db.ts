@@ -209,12 +209,36 @@ const SEED_KARPATHY_BODY = `Behavioral guidelines (Andrej Karpathy's LLM-coding 
    Turn tasks into verifiable goals ("add validation" → "write tests for invalid
    inputs, then make them pass") so you can loop independently.`;
 
+// Always-on pack (proposal 61): Felix Rieseberg's "How to be more ambitious", tuned
+// so ambition means depth and verification, never extra scope.
+const SEED_AMBITION_BODY = `Ambition guidelines (Felix Rieseberg, "How to be more ambitious"):
+
+- Altitude: before starting, say in one line what the user likely wants to happen
+  after this task, and serve that. When a choice is needed, surface it as a
+  decision with the strongest argument for each option.
+- Depth: use professional-grade methods (real tests, profilers, databases,
+  statistics), not approximations. Work from the rawest source available (logs,
+  data, code), not summaries.
+- Evidence: don't grade your own work. Show something external that proves it: a
+  test run, real output, a measurement. If the data contradicts an assumption
+  (the user's included), say so.
+- Hard targets: if a target looks ambitious, treat it as achievable; explain what
+  it would take rather than quietly lowering it.
+- Range: name which discipline's methods fit the problem and apply them.
+
+Ambition applies to depth and verification, never to scope: still change only
+what was asked.`;
+
 function seedPrompts(db: DB): void {
   const now = new Date().toISOString();
-  db.prepare(
-    `INSERT OR IGNORE INTO prompts (id, title, body, tags, project_id, vars_json, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?)`,
-  ).run("seed-karpathy", "Karpathy guidelines", SEED_KARPATHY_BODY, "guidelines,global", null, null, now, now);
+  // always_apply=1 (proposal 61): fresh DBs start with both packs on. Existing DBs keep
+  // their row (INSERT OR IGNORE); migrate() switched Karpathy on once for them.
+  const pack = db.prepare(
+    `INSERT OR IGNORE INTO prompts (id, title, body, tags, project_id, vars_json, created_at, updated_at, always_apply)
+     VALUES (?,?,?,?,?,?,?,?,1)`,
+  );
+  pack.run("seed-karpathy", "Karpathy guidelines", SEED_KARPATHY_BODY, "guidelines,global", null, null, now, now);
+  pack.run("seed-ambition", "Ambition (Rieseberg)", SEED_AMBITION_BODY, "guidelines,global", null, null, now, now);
   // Work-standard prompts (ADR 0028, docs/WORKFLOW.md): fixed ids → seeded once, editable after.
   const ins = db.prepare(
     `INSERT OR IGNORE INTO prompts (id, title, body, tags, project_id, vars_json, created_at, updated_at)
@@ -279,6 +303,12 @@ function migrate(db: DB): void {
   // Prompt library usage (ADR 0018): "most used" sort.
   if (!has("prompts", "use_count")) db.exec("ALTER TABLE prompts ADD COLUMN use_count INTEGER NOT NULL DEFAULT 0");
   if (!has("prompts", "last_used_at")) db.exec("ALTER TABLE prompts ADD COLUMN last_used_at TEXT");
+  // Always-apply prompts (proposal 61, ADR 0031). Switching Karpathy on happens only in the
+  // branch that adds the column, so a user who later turns it off keeps it off.
+  if (!has("prompts", "always_apply")) {
+    db.exec("ALTER TABLE prompts ADD COLUMN always_apply INTEGER NOT NULL DEFAULT 0");
+    db.exec("UPDATE prompts SET always_apply = 1 WHERE id = 'seed-karpathy'");
+  }
   // ADR 0029: which device minted a code (NULL = the server terminal).
   if (!has("pairing_codes", "issued_by")) db.exec("ALTER TABLE pairing_codes ADD COLUMN issued_by TEXT");
   // The audit-log viewer (GET /events) pages by ts descending.

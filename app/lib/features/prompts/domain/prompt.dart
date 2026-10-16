@@ -11,6 +11,7 @@ class Prompt {
     this.projectId,
     this.varsJson,
     this.useCount = 0,
+    this.alwaysApply = false,
   });
 
   final String id;
@@ -22,6 +23,9 @@ class Prompt {
 
   /// Times used (ADR 0018) — the library's "most used" sort.
   final int useCount;
+
+  /// Appended to the system prompt of every new session in scope (ADR 0031).
+  final bool alwaysApply;
 
   bool get isGlobal => projectId == null;
 
@@ -49,6 +53,7 @@ class Prompt {
         projectId: j['project_id'] as String?,
         varsJson: j['vars_json'] as String?,
         useCount: (j['use_count'] as num?)?.toInt() ?? 0,
+        alwaysApply: j['always_apply'] == true,
       );
 }
 

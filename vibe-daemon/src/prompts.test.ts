@@ -4,6 +4,10 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import Database from "better-sqlite3";
 import { openDb } from "./db.js";
 import { buildApp } from "./app.js";
 import { createPairingCode } from "./auth.js";
@@ -83,4 +87,56 @@ test("?project_id filter returns globals + that project's prompts only", async (
 test("prompts routes reject unauthenticated", async () => {
   const { app } = await setup();
   assert.equal((await app.inject({ method: "GET", url: "/prompts" })).statusCode, 401);
+});
+
+test("always_apply: both packs seeded on; flag round-trips as a boolean", async () => {
+  const { app, auth } = await setup();
+  const get = async (id: string) => (await app.inject({ method: "GET", url: `/prompts/${id}`, headers: auth })).json();
+  assert.equal((await get("seed-karpathy")).always_apply, true);
+  assert.equal((await get("seed-ambition")).always_apply, true);
+  assert.ok((await get("seed-ambition")).body.length <= 1500);
+  assert.equal((await get("seed-work-handoff")).always_apply, false);
+});
+
+test("always_apply: {{vars}} rejected on create, update, and body-only edits of a flagged prompt", async () => {
+  const { app, auth } = await setup();
+  const send = (method: "POST" | "PUT", url: string, payload: object) => app.inject({ method, url, headers: auth, payload });
+  assert.equal((await send("POST", "/prompts", { title: "t", body: "fix {{file}}", always_apply: true })).statusCode, 400);
+  assert.equal((await send("POST", "/prompts", { title: "t", body: "ok", always_apply: "yes" })).statusCode, 400);
+  const tpl = (await send("POST", "/prompts", { title: "t", body: "fix {{file}}" })).json();
+  assert.equal(tpl.always_apply, false);
+  assert.equal((await send("PUT", `/prompts/${tpl.id}`, { always_apply: true })).statusCode, 400);
+  const rule = (await send("POST", "/prompts", { title: "r", body: "be careful", always_apply: true })).json();
+  assert.equal(rule.always_apply, true);
+  assert.equal((await send("PUT", `/prompts/${rule.id}`, { body: "be {{how}}" })).statusCode, 400);
+  assert.equal((await send("PUT", `/prompts/${rule.id}`, { body: "be very careful" })).json().always_apply, true);
+});
+
+test("always_apply: toggles and create/delete are audited by id, never the body", async () => {
+  const { db, app, auth } = await setup();
+  const send = (method: "POST" | "PUT" | "DELETE", url: string, payload?: object) => app.inject({ method, url, headers: auth, payload });
+  const id = (await send("POST", "/prompts", { title: "r", body: "SECRET-BODY", always_apply: true })).json().id;
+  await send("PUT", `/prompts/${id}`, { title: "renamed" }); // no change → no entry
+  await send("PUT", `/prompts/${id}`, { always_apply: false });
+  await send("PUT", `/prompts/${id}`, { always_apply: true });
+  await send("DELETE", `/prompts/${id}`);
+  const rows = db.prepare("SELECT detail FROM events WHERE kind = 'prompt.always_apply' ORDER BY rowid").all() as { detail: string }[];
+  assert.deepEqual(rows.map((r) => r.detail), [`${id}=on`, `${id}=off`, `${id}=on`, `${id}=off`]);
+  assert.ok(!JSON.stringify(db.prepare("SELECT * FROM events").all()).includes("SECRET-BODY"));
+});
+
+test("always_apply migration: switches Karpathy on exactly once", () => {
+  const file = join(mkdtempSync(join(tmpdir(), "vibe-aa-")), "old.db");
+  const old = new Database(file);
+  old.exec(`CREATE TABLE prompts (id TEXT PRIMARY KEY, title TEXT NOT NULL, body TEXT NOT NULL, tags TEXT, project_id TEXT,
+    vars_json TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, use_count INTEGER NOT NULL DEFAULT 0, last_used_at TEXT);
+    INSERT INTO prompts (id, title, body, created_at, updated_at) VALUES ('seed-karpathy','K','b','x','x'), ('other','O','b','x','x');`);
+  old.close();
+  const flags = (db: ReturnType<typeof openDb>) =>
+    Object.fromEntries((db.prepare("SELECT id, always_apply a FROM prompts").all() as any[]).map((r) => [r.id, r.a]));
+  const db1 = openDb(file);
+  assert.deepEqual(flags(db1), { "seed-karpathy": 1, other: 0, "seed-ambition": 1, ...Object.fromEntries(["handoff", "resume", "proposal", "close-milestone"].map((n) => [`seed-work-${n}`, 0])) });
+  db1.prepare("UPDATE prompts SET always_apply = 0 WHERE id = 'seed-karpathy'").run(); // user turns it off
+  db1.close();
+  assert.equal(flags(openDb(file))["seed-karpathy"], 0, "re-open must not re-enable it");
 });

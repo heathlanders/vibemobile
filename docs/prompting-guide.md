@@ -22,6 +22,16 @@ Save prompts that work to the library, with `{{vars}}` for the parts that
 change. "Past prompts" in the library shows everything you've sent across all
 sessions, so you can promote a good one.
 
+### Ambition (Rieseberg)
+
+Felix Rieseberg's [How to be more ambitious](https://felixrieseberg.com/how-to-be-more-ambitious-a-tutorial-for-humans-with-models/)
+is applied two ways. The **Ambition (Rieseberg)** prompt is flagged *Apply to every session*, so it
+rides along with Karpathy's guidelines in every new chat (ADR 0031). And **Improve → Go deeper**
+rewrites a draft to ask what a top professional would do, from the rawest material, with which
+methods, and what external evidence would show it is right. Ambition here means depth and
+verification, never extra scope. The habit no tool can supply: give the model full context and
+access, and take yourself out of the loop.
+
 ## 2. Picking the model (all providers)
 
 - **Hard reasoning, architecture, gnarly bugs:** the biggest model you have
