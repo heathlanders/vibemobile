@@ -211,6 +211,23 @@ void main() {
       await t.pump(const Duration(seconds: 1));
     });
 
+    testWidgets('the replace toggle opens and hides the replace row (no Ctrl+H on a phone)', (t) async {
+      final api = FakeEditorApi(content: 'foo');
+      await pumpEditor(t, api);
+      await t.tap(find.byTooltip('Find'));
+      await t.pump();
+      Finder replaceField() => find.byWidgetPredicate((w) => w is TextField && w.decoration?.hintText == 'Replace');
+      expect(replaceField(), findsNothing);
+      await t.tap(find.byTooltip('Show replace'));
+      await t.pump();
+      expect(replaceField(), findsOneWidget);
+      await t.tap(find.byTooltip('Hide replace'));
+      await t.pump();
+      expect(replaceField(), findsNothing);
+      await t.pumpWidget(const SizedBox());
+      await t.pump(const Duration(seconds: 1));
+    });
+
     testWidgets('the regex toggle changes what matches', (t) async {
       final api = FakeEditorApi(content: 'a1 b22');
       await pumpEditor(t, api);

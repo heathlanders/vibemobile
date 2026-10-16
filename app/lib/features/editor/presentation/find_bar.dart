@@ -50,6 +50,9 @@ class EditorFindBar extends StatelessWidget implements PreferredSizeWidget {
                 SizedBox(width: 44, child: Text(result, textAlign: TextAlign.center, style: Theme.of(context).textTheme.labelSmall)),
                 _icon(Icons.arrow_upward, 'Previous', v.result == null ? null : controller.previousMatch),
                 _icon(Icons.arrow_downward, 'Next', v.result == null ? null : controller.nextMatch),
+                // Same as Ctrl+H, for the phone (no keyboard shortcut there).
+                if (!readOnly)
+                  _icon(Icons.find_replace, _replace ? 'Hide replace' : 'Show replace', controller.toggleMode),
                 _icon(Icons.close, 'Close', controller.close),
               ]),
             ),
