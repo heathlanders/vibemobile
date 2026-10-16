@@ -145,10 +145,10 @@ Status and next steps are in `docs/milestones.md` → "Desktop client".
 - [x] On-device check: phone + Windows app on one chat (1.0.31)
 
 **Project files API + transfer ([proposal 59](docs/proposals/59-project-files-transfer.md)).**
-- [ ] ADR 0030 project-file writes + `security.md` items + docs-map row
-- [ ] Daemon `project-files.ts`: list / read text (sha) / write text (409 on stale sha), project + session scoped, tests
-- [ ] Daemon raw download / upload (encapsulated plugin, caps, `wx` unless overwrite), tests; `reviewer` pass
-- [ ] App: project Files screen, Download, Upload here (+ desktop drag-drop), progress, overwrite prompt
+- [x] ADR 0030 project-file writes + `security.md` items + docs-map row
+- [x] Daemon `project-files.ts`: list / read text (sha) / write text (409 on stale sha), project + session scoped, tests
+- [x] Daemon raw download / upload (encapsulated plugin, caps, `wx` unless overwrite), tests; `reviewer` pass
+- [x] App: project Files screen, Download, Upload here (+ desktop drag-drop), progress, overwrite prompt
 - [ ] On-device check: >5 MiB binary round trip on phone and Windows
 
 **Code editor ([proposal 60](docs/proposals/60-code-editor.md)).**

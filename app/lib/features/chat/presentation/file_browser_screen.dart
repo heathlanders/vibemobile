@@ -1,33 +1,54 @@
+import 'dart:io';
+
+import 'package:desktop_drop/desktop_drop.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
+import '../../../core/platform.dart';
 import '../../../core/providers.dart';
 import '../../../core/spacing.dart';
 import '../../../core/theme.dart';
 import '../../../core/token_store.dart';
 import '../../../core/widgets.dart';
+import '../../sessions/domain/session.dart';
+import '../../files/data/project_files_api.dart';
 import '../data/browse_api.dart';
 
-/// Read-only browser for a chat's checkout (proposal 46): folders, text files, nothing else.
-/// Back goes up a folder before it leaves the screen.
+/// Browser for a project's (or a chat's) files (proposals 46, 59): folders and text files to read,
+/// plus download and upload. Back goes up a folder before it leaves the screen.
 class FileBrowserScreen extends StatefulWidget {
-  const FileBrowserScreen({super.key, required this.sessionId, this.creds, this.api});
-  final String sessionId;
-  final Creds? creds;
+  const FileBrowserScreen({super.key, required this.api, required this.title, this.pickFiles});
+  final ProjectFilesApi api;
+  final String title;
 
-  /// Tests inject a fake; production builds one from [creds].
-  final BrowseApi? api;
+  /// Tests inject the picker; production uses the system file picker.
+  final Future<List<UploadSource>> Function()? pickFiles;
 
   @override
   State<FileBrowserScreen> createState() => _FileBrowserScreenState();
 }
 
+Future<List<UploadSource>> _systemPick() async {
+  final picked = await FilePicker.pickFiles();
+  return [for (final f in picked) UploadSource(name: f.name, length: await f.length() ?? 0, open: f.readAsByteStream)];
+}
+
 class _FileBrowserScreenState extends State<FileBrowserScreen> {
-  late final BrowseApi _api = widget.api ?? BrowseApi(dioFor(widget.creds!));
+  ProjectFilesApi get _api => widget.api;
   String _path = '';
   BrowseListing? _listing;
   String? _error;
   bool _loading = true;
+  bool _dragging = false;
+
+  /// What the one running transfer is doing ("Uploading a.txt…") and how far along (null = unknown).
+  String? _status;
+  double? _progress;
+  bool get _busy => _status != null;
 
   @override
   void initState() {
@@ -41,7 +62,7 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
       _error = null;
     });
     try {
-      final l = await _api.list(widget.sessionId, path);
+      final l = await _api.list(path);
       if (mounted) {
         setState(() {
           _path = l.path;
@@ -63,14 +84,126 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
 
   String _join(String name) => _path.isEmpty ? name : '$_path/$name';
 
+  void _say(String m, {SnackBarAction? action}) {
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m), action: action));
+  }
+
   Future<void> _open(BrowseEntry e) async {
     if (e.isDir) return _go(_join(e.name));
     if (!e.readable) {
       final why = e.type == 'link' ? 'This link points outside the project, so it isn\'t shown.' : 'This looks like a secret (keys, credentials, .env), so it isn\'t shown.';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(why)));
+      _say(why);
       return;
     }
-    await Navigator.of(context).push(sharedAxisRoute(FileViewerScreen(path: _join(e.name), load: () => _api.read(widget.sessionId, _join(e.name)))));
+    await Navigator.of(context).push(sharedAxisRoute(FileViewerScreen(path: _join(e.name), load: () => _api.readText(_join(e.name)))));
+  }
+
+  void _progressTo(int done, int total) {
+    if (mounted) setState(() => _progress = total > 0 ? done / total : null);
+  }
+
+  Future<void> _download(BrowseEntry e) async {
+    final path = _join(e.name);
+    File dest;
+    if (isMobile) {
+      final dir = Directory('${(await getTemporaryDirectory()).path}/downloads');
+      dir.createSync(recursive: true);
+      dest = File('${dir.path}/${e.name}');
+    } else {
+      // The dialog asks about overwriting; saveFile writes an empty file there, which the download replaces.
+      final uri = await FilePicker.saveFile(fileName: e.name, bytes: Uint8List(0));
+      if (uri == null) return;
+      dest = File(uri.toFilePath());
+    }
+    setState(() {
+      _status = 'Downloading ${e.name}…';
+      _progress = null;
+    });
+    try {
+      await _api.download(path, dest, onProgress: _progressTo);
+      if (!mounted) return;
+      setState(() => _status = null);
+      if (isMobile) {
+        await SharePlus.instance.share(ShareParams(files: [XFile(dest.path)]));
+        _say('Downloaded ${e.name}', action: SnackBarAction(label: 'Open', onPressed: () => OpenFilex.open(dest.path)));
+      } else {
+        _say('Saved ${e.name}');
+      }
+    } on BrowseError catch (err) {
+      _say(err.message);
+    } catch (_) {
+      _say('Could not download ${e.name}');
+    } finally {
+      if (mounted) setState(() => _status = null);
+    }
+  }
+
+  Future<void> _pickAndUpload() async {
+    final List<UploadSource> picked;
+    try {
+      picked = await (widget.pickFiles ?? _systemPick)();
+    } catch (_) {
+      return _say('Could not pick a file');
+    }
+    await _upload(picked);
+  }
+
+  Future<bool> _askOverwrite(String name) async =>
+      await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('$name already exists. Overwrite?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Skip')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Overwrite')),
+          ],
+        ),
+      ) ??
+      false;
+
+  /// Uploads each source into the folder open now, one at a time; an existing name asks first.
+  Future<void> _upload(List<UploadSource> sources) async {
+    if (sources.isEmpty || _busy) return;
+    final dir = _path;
+    var done = 0;
+    for (final src in sources) {
+      var overwrite = false;
+      while (mounted) {
+        setState(() {
+          _status = 'Uploading ${src.name}…';
+          _progress = 0;
+        });
+        try {
+          await _api.upload(dir, src, overwrite: overwrite, onProgress: _progressTo);
+          done++;
+        } on BrowseError catch (err) {
+          if (err.status == 409 && !overwrite) {
+            setState(() => _status = null);
+            if (await _askOverwrite(src.name)) {
+              overwrite = true;
+              continue;
+            }
+          } else {
+            _say('${src.name}: ${err.message}');
+          }
+        } catch (_) {
+          _say('Could not upload ${src.name}');
+        }
+        break;
+      }
+    }
+    if (!mounted) return;
+    setState(() => _status = null);
+    if (done > 0) _say(done == 1 ? 'Uploaded' : 'Uploaded $done files');
+    _go(_path);
+  }
+
+  Future<void> _onDrop(DropDoneDetails d) async {
+    setState(() => _dragging = false);
+    await _upload([
+      for (final f in d.files)
+        if (FileSystemEntity.isFileSync(f.path)) UploadSource.file(File(f.path), name: f.name),
+    ]);
   }
 
   @override
@@ -84,40 +217,70 @@ class _FileBrowserScreenState extends State<FileBrowserScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(_path.isEmpty ? 'Files' : _path, overflow: TextOverflow.ellipsis),
-          actions: [IconButton(tooltip: 'Refresh', icon: const Icon(Icons.refresh), onPressed: () => _go(_path))],
+          title: Text(_path.isEmpty ? widget.title : _path, overflow: TextOverflow.ellipsis),
+          actions: [
+            IconButton(tooltip: 'Upload here', icon: const Icon(Icons.upload_file_outlined), onPressed: _busy ? null : _pickAndUpload),
+            IconButton(tooltip: 'Refresh', icon: const Icon(Icons.refresh), onPressed: () => _go(_path)),
+          ],
         ),
         body: _error != null
             ? ErrorBody(message: _error!)
             : l == null
                 ? const Center(child: CircularProgressIndicator())
-                : Column(children: [
-                    if (_loading) const LinearProgressIndicator(minHeight: 2),
-                    Expanded(
-                      child: l.entries.isEmpty
-                          ? const Center(child: Text('Empty folder'))
-                          : ListView(children: [
-                              if (_path.isNotEmpty) ListTile(dense: true, leading: const Icon(Icons.arrow_upward), title: const Text('..'), onTap: () => _go(_parent)),
-                              for (final e in l.entries)
-                                ListTile(
-                                  dense: true,
-                                  leading: Icon(
-                                    e.isDir ? Icons.folder_outlined : (e.type == 'link' ? Icons.link_off : (e.readable ? Icons.description_outlined : Icons.lock_outline)),
-                                    color: e.readable ? null : theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                  title: Text(e.name, overflow: TextOverflow.ellipsis, style: e.readable ? null : TextStyle(color: theme.colorScheme.onSurfaceVariant)),
-                                  subtitle: e.isDir || e.size == null ? null : Text(sizeLabel(e.size), style: theme.textTheme.bodySmall),
-                                  onTap: () => _open(e),
-                                ),
-                              if (l.truncated)
-                                Padding(padding: const EdgeInsets.all(Spacing.lg), child: Text('Only the first ${l.entries.length} entries are shown.', style: theme.textTheme.bodySmall)),
+                : DropTarget(
+                    enable: !isMobile,
+                    onDragEntered: (_) => setState(() => _dragging = true),
+                    onDragExited: (_) => setState(() => _dragging = false),
+                    onDragDone: _onDrop,
+                    child: DecoratedBox(
+                      position: DecorationPosition.foreground,
+                      decoration: BoxDecoration(border: _dragging ? Border.all(color: theme.colorScheme.primary, width: 2) : null),
+                      child: Column(children: [
+                        if (_loading) const LinearProgressIndicator(minHeight: 2),
+                        Expanded(
+                          child: l.entries.isEmpty
+                              ? const Center(child: Text('Empty folder'))
+                              : ListView(children: [
+                                  if (_path.isNotEmpty) ListTile(dense: true, leading: const Icon(Icons.arrow_upward), title: const Text('..'), onTap: () => _go(_parent)),
+                                  for (final e in l.entries)
+                                    ListTile(
+                                      dense: true,
+                                      leading: Icon(
+                                        e.isDir ? Icons.folder_outlined : (e.type == 'link' ? Icons.link_off : (e.readable ? Icons.description_outlined : Icons.lock_outline)),
+                                        color: e.readable ? null : theme.colorScheme.onSurfaceVariant,
+                                      ),
+                                      title: Text(e.name, overflow: TextOverflow.ellipsis, style: e.readable ? null : TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+                                      subtitle: e.isDir || e.size == null ? null : Text(sizeLabel(e.size), style: theme.textTheme.bodySmall),
+                                      trailing: e.type == 'file' && e.readable
+                                          ? IconButton(tooltip: 'Download', icon: const Icon(Icons.download_outlined), onPressed: _busy ? null : () => _download(e))
+                                          : null,
+                                      onTap: () => _open(e),
+                                    ),
+                                  if (l.truncated)
+                                    Padding(padding: const EdgeInsets.all(Spacing.lg), child: Text('Only the first ${l.entries.length} entries are shown.', style: theme.textTheme.bodySmall)),
+                                ]),
+                        ),
+                        if (_status != null)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(Spacing.md, Spacing.sm, Spacing.md, Spacing.md),
+                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text(_progress == null ? _status! : '$_status ${(_progress! * 100).round()}%', style: theme.textTheme.bodySmall),
+                              const SizedBox(height: Spacing.xs),
+                              LinearProgressIndicator(value: _progress),
                             ]),
+                          ),
+                      ]),
                     ),
-                  ]),
+                  ),
       ),
     );
   }
 }
+
+/// Pushes the file browser for a project's folder.
+Future<void> openProjectFiles(BuildContext context, Creds creds, Project project) => Navigator.of(context).push(
+      sharedAxisRoute(FileBrowserScreen(api: ProjectFilesApi.project(dioFor(creds), project.id), title: project.label)),
+    );
 
 /// Opens a file named in chat (proposal 48) in [FileViewerScreen]. The only request it can make is
 /// browse/file for [sessionId] (the daemon confines, hides secrets, refuses binaries); refusals

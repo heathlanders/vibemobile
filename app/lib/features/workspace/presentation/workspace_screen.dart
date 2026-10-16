@@ -15,6 +15,7 @@ import '../../chat/presentation/changed_files_sheet.dart';
 import '../../chat/presentation/chat_screen.dart';
 import '../../dashboard/presentation/desktop_shell.dart';
 import '../../notes/presentation/notes_panel.dart';
+import '../../chat/presentation/file_browser_screen.dart';
 import '../../projects/data/git_api.dart';
 import '../../sessions/data/session_api.dart';
 import '../../sessions/domain/session.dart';
@@ -320,6 +321,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       onMenu: _sessionMenu,
       onCreate: _create,
       onNotes: (p) => showProjectNotes(context, widget.creds, p),
+      onFiles: (p) => openProjectFiles(context, widget.creds, p),
       onRefresh: _refreshSidebar,
     );
     return CallbackShortcuts(
@@ -389,6 +391,7 @@ class _Sidebar extends StatelessWidget {
     required this.onMenu,
     required this.onCreate,
     required this.onNotes,
+    required this.onFiles,
     required this.onRefresh,
   });
 
@@ -401,6 +404,7 @@ class _Sidebar extends StatelessWidget {
   final SessionMenu onMenu;
   final CreateSession onCreate;
   final void Function(Project) onNotes;
+  final void Function(Project) onFiles;
   final VoidCallback onRefresh;
 
   @override
@@ -437,6 +441,7 @@ class _Sidebar extends StatelessWidget {
                       onMenu: onMenu,
                       onCreate: onCreate,
                       onNotes: onNotes,
+                      onFiles: onFiles,
                     ),
                   ],
                 ),
@@ -463,6 +468,7 @@ class _ProjectSessions extends StatefulWidget {
     required this.onMenu,
     required this.onCreate,
     required this.onNotes,
+    required this.onFiles,
   });
 
   final int generation;
@@ -474,6 +480,7 @@ class _ProjectSessions extends StatefulWidget {
   final SessionMenu onMenu;
   final CreateSession onCreate;
   final void Function(Project) onNotes;
+  final void Function(Project) onFiles;
 
   @override
   State<_ProjectSessions> createState() => _ProjectSessionsState();
@@ -540,6 +547,11 @@ class _ProjectSessionsState extends State<_ProjectSessions> {
               icon: const Icon(Icons.sticky_note_2_outlined, size: 16),
               label: const Text('Notes'),
               onPressed: () => widget.onNotes(widget.project),
+            ),
+            TextButton.icon(
+              icon: const Icon(Icons.folder_outlined, size: 16),
+              label: const Text('Files'),
+              onPressed: () => widget.onFiles(widget.project),
             ),
             FutureBuilder<List<AgentPreset>>(
               future: widget.presets,

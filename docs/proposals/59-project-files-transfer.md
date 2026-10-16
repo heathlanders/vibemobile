@@ -1,6 +1,6 @@
 # 59 — Project files API + file transfer
 
-**Status:** accepted 2026-10-16
+**Status:** building (daemon + app done 2026-10-16; on-device check pending)
 
 From the Notes inbox: "transfer files to and from server to client pc". Also the base the code
 editor (proposal 60) builds on: today every project-file route is read-only and session-scoped

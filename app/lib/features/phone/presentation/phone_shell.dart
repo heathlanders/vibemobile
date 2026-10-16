@@ -8,6 +8,7 @@ import '../../../core/token_store.dart';
 import '../../../core/widgets.dart';
 import '../../chat/presentation/chat_screen.dart';
 import '../../notes/presentation/notes_panel.dart';
+import '../../chat/presentation/file_browser_screen.dart';
 import '../../projects/presentation/new_project_screen.dart';
 import '../../sessions/data/session_api.dart';
 import '../../sessions/domain/session.dart';
@@ -271,6 +272,7 @@ class _PhoneShellState extends ConsumerState<PhoneShell> with SingleTickerProvid
                             onCreate: _create,
                             onNewProject: _newProject,
                             onNotes: (p) => showProjectNotes(context, widget.creds, p),
+                            onFiles: (p) => openProjectFiles(context, widget.creds, p),
                             onRefresh: _refresh,
                           ),
                         ),

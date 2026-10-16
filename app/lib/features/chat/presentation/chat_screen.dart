@@ -56,6 +56,7 @@ import 'context_sheet.dart';
 import 'branch_sheet.dart';
 import 'ci_sheet.dart';
 import 'effort_sheet.dart';
+import '../../files/data/project_files_api.dart';
 import 'file_browser_screen.dart';
 import 'markdown_text.dart';
 import 'mcp_sheet.dart';
@@ -1109,7 +1110,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
               if (v == 'effort') _pickEffort();
               if (v == 'mcp') showMcpSheet(context, _controller);
               if (v == 'ci') showCiSheet(context, creds: widget.creds, sessionId: widget.session.id);
-              if (v == 'files') Navigator.of(context).push(sharedAxisRoute(FileBrowserScreen(sessionId: widget.session.id, creds: widget.creds)));
+              if (v == 'files') Navigator.of(context).push(sharedAxisRoute(FileBrowserScreen(api: ProjectFilesApi.session(dioFor(widget.creds), widget.session.id), title: 'Files')));
               if (v == 'improve') _improveDraft();
               if (v == 'tokens') showSessionSpendSheet(context, widget.creds, widget.session.id);
             },

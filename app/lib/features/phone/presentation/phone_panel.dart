@@ -32,6 +32,7 @@ class PhonePanel extends ConsumerWidget {
     required this.onCreate,
     required this.onNewProject,
     required this.onNotes,
+    required this.onFiles,
     required this.onRefresh,
   });
 
@@ -48,6 +49,7 @@ class PhonePanel extends ConsumerWidget {
   final PhoneCreate onCreate;
   final VoidCallback onNewProject;
   final void Function(Project) onNotes;
+  final void Function(Project) onFiles;
   final Future<void> Function() onRefresh;
 
   @override
@@ -125,6 +127,12 @@ class PhonePanel extends ConsumerWidget {
                           tooltip: 'Notes',
                           icon: const Icon(Icons.sticky_note_2_outlined),
                           onPressed: () => onNotes(project),
+                        ),
+                      if (project != null)
+                        IconButton(
+                          tooltip: 'Files',
+                          icon: const Icon(Icons.folder_outlined),
+                          onPressed: () => onFiles(project),
                         ),
                     ],
                   ),

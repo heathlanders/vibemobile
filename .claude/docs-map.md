@@ -65,6 +65,7 @@ Derived from `/docs`. Tells Claude **which doc to read for which work**, so
 | Question why both engines exist                        | `docs/decisions/0002-hybrid-engine.md`          |
 | Check what's done / what's next                        | `docs/milestones.md`                            |
 | Re-run a spike                                          | the matching `docs/spikes/*.md` (has the run cmd) |
+| Touch project files API / file save / upload / download | `docs/decisions/0030-project-file-writes.md`, `docs/proposals/59-project-files-transfer.md`, `docs/protocols/session-rest.md` (Project files), `docs/security.md` #33 — surface: `vibe-daemon/src/project-files.ts`, `browse.ts` |
 | Add / triage a Claude-session feature idea              | `docs/proposals/` (graduates to an ADR/protocol when accepted) |
 
 ## Conventions this project follows
