@@ -1,6 +1,6 @@
 # 58 — Multi-device chat
 
-**Status:** building 2026-10-16; on-device check pending
+**Status:** shipped 2026-10-16 (1.0.31; on-device check passed: phone + Windows)
 
 ## Problem
 

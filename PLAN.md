@@ -142,7 +142,7 @@ Status and next steps are in `docs/milestones.md` → "Desktop client".
 **Multi-device chat ([proposal 58](docs/proposals/58-multi-device-chat.md)).**
 - [x] Chat sessions fan out to every attached client; first permission/dialog answer wins
 - [x] `stop()` closes attached sockets (1012 retry, 4404 stop)
-- [ ] On-device check: phone + Windows app on one chat
+- [x] On-device check: phone + Windows app on one chat (1.0.31)
 
 **Project files API + transfer ([proposal 59](docs/proposals/59-project-files-transfer.md)).**
 - [ ] ADR 0030 project-file writes + `security.md` items + docs-map row
