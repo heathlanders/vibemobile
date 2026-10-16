@@ -18,13 +18,14 @@ import 'features/chat/presentation/share_image_screen.dart';
 import 'features/chat/presentation/chat_screen.dart';
 import 'features/dashboard/presentation/dashboard_screen.dart';
 import 'features/dashboard/presentation/desktop_shell.dart';
+import 'features/editor/window/editor_window_app.dart';
 import 'features/notifications/data/push_service.dart';
 import 'features/pairing/presentation/pairing_screen.dart';
 import 'features/phone/presentation/phone_shell.dart';
 import 'features/sessions/data/session_api.dart';
 import 'features/update/presentation/update_banner.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   // Client error log (Settings → Copy logs): uncaught framework/async errors.
   await AppLog.init();
@@ -37,6 +38,11 @@ Future<void> main() async {
     AppLog.error('uncaught: $e\n$st');
     return false; // keep default handling (console)
   };
+  // The Windows editor window (proposal 62): same exe, no push, no update checks.
+  if (args.contains('--editor')) {
+    await runEditorWindow();
+    return;
+  }
   // Push (ADR 0013): FCM + local notifications. Fail-soft — never blocks startup.
   await PushService.init();
   // Phones are portrait-only (proposal 54); tablets and desktop rotate freely.

@@ -5,6 +5,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../core/app_log.dart';
+import '../../editor/window/editor_launcher.dart';
 import '../domain/update_info.dart';
 import 'update_api.dart';
 
@@ -64,6 +65,8 @@ class UpdateInstaller {
 
     final exeName = Platform.resolvedExecutable.split(RegExp(r'[\\/]')).last;
     if (!File('${out.path}$sep$exeName').existsSync()) throw Exception('archive has no $exeName');
+    // The editor window is a second process holding the same DLLs: have it quit first.
+    await quitEditorWindow();
     // update.cmd starts update.ps1 by name from the same dir.
     File('${tmp.path}${sep}update.ps1').writeAsStringSync(
       buildUpdateScript(
