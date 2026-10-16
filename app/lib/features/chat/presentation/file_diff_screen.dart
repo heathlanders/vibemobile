@@ -5,6 +5,7 @@ import '../../../core/spacing.dart';
 import '../../../core/token_store.dart';
 import '../data/file_edits_api.dart';
 import '../domain/file_edits.dart';
+import '../../editor/presentation/code_view.dart';
 import 'diff_lines.dart';
 
 /// One edited file's git-style view (proposal 20): the session's diff sections,
@@ -60,7 +61,7 @@ class _FileDiffScreenState extends State<FileDiffScreen> {
               onSelectionChanged: (s) => _setView(s.first),
             ),
           ),
-          Expanded(child: _view == _View.diff ? _DiffView(diff: _diff) : _FileView(content: _content!)),
+          Expanded(child: _view == _View.diff ? _DiffView(diff: _diff) : _FileView(content: _content!, path: widget.file.relPath)),
         ],
       ),
     );
@@ -116,8 +117,9 @@ class _DiffView extends StatelessWidget {
 }
 
 class _FileView extends StatelessWidget {
-  const _FileView({required this.content});
+  const _FileView({required this.content, required this.path});
   final Future<FileContent?> content;
+  final String path;
 
   @override
   Widget build(BuildContext context) {
@@ -146,14 +148,7 @@ class _FileView extends StatelessWidget {
                 child: Text('Truncated — showing the first part of a large file',
                     style: theme.textTheme.labelSmall),
               ),
-            Expanded(
-              child: SelectionArea(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(Spacing.md),
-                  child: SizedBox(width: double.infinity, child: Text(file.content, style: monoStyle(context))),
-                ),
-              ),
-            ),
+            Expanded(child: ReadOnlyCodeView(text: file.content, path: path)),
           ],
         );
       },

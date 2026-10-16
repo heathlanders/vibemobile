@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:re_editor/re_editor.dart';
 import 'package:vibemobile/features/chat/data/browse_api.dart';
 import 'package:vibemobile/features/chat/presentation/file_browser_screen.dart';
 import 'package:vibemobile/features/files/data/project_files_api.dart';
@@ -25,11 +27,11 @@ class FakeApi extends ProjectFilesApi {
   }
 
   @override
-  Future<BrowseFile> readText(String path) async {
+  Future<TextDoc> readDoc(String path) async {
     read_.add(path);
     final f = files[path];
     if (f is BrowseError) throw f;
-    return BrowseFile(path: path, size: (f as String).length, content: f);
+    return TextDoc(path: path, content: f as String, sha: 'sha-$path', mtime: null, size: f.length);
   }
 }
 
@@ -94,7 +96,7 @@ void main() {
 
     Future<FakeApi> pump(WidgetTester t, [FakeApi? api]) async {
       final a = api ?? tree();
-      await t.pumpWidget(MaterialApp(home: FileBrowserScreen(title: 'Files', api: a)));
+      await t.pumpWidget(ProviderScope(child: MaterialApp(home: FileBrowserScreen(title: 'Files', api: a))));
       await t.pumpAndSettle();
       return a;
     }
@@ -137,14 +139,25 @@ void main() {
       expect(find.text('Empty folder'), findsOneWidget);
     });
 
-    testWidgets('a text file opens in the viewer with its contents and a copy button', (t) async {
+    testWidgets('a text file opens in the code editor with its contents', (t) async {
       final api = await pump(t);
       await t.tap(find.text('README.md'));
       await t.pumpAndSettle();
       expect(api.read_, ['README.md']);
-      expect(find.textContaining('line two'), findsOneWidget);
-      expect(find.byTooltip('Copy'), findsOneWidget);
-      expect(find.textContaining('README.md · 17 B'), findsOneWidget);
+      expect(t.widget<CodeEditor>(find.byType(CodeEditor)).controller!.text, '# hello\nline two\n');
+      expect(find.byTooltip('Save'), findsOneWidget);
+    });
+
+    testWidgets('onOpenFile replaces the pushed editor (the desktop workspace opens a tab)', (t) async {
+      final api = tree();
+      final opened = <String>[];
+      await t.pumpWidget(MaterialApp(home: FileBrowserScreen(title: 'Files', api: api, onOpenFile: (a, p) => opened.add('${a.scope}:$p'))));
+      await t.pumpAndSettle();
+      await t.tap(find.text('README.md'));
+      await t.pumpAndSettle();
+      expect(opened, ['sessions/s1:README.md']);
+      expect(find.byType(CodeEditor), findsNothing);
+      expect(api.read_, isEmpty);
     });
 
     testWidgets('a secret never reaches the API — just an explanation', (t) async {
@@ -173,7 +186,7 @@ void main() {
     });
 
     testWidgets('a failed listing shows the error, not a crash', (t) async {
-      await t.pumpWidget(MaterialApp(home: FileBrowserScreen(title: 'Files', api: FakeApi({}))));
+      await t.pumpWidget(ProviderScope(child: MaterialApp(home: FileBrowserScreen(title: 'Files', api: FakeApi({})))));
       await t.pumpAndSettle();
       expect(find.textContaining('not found'), findsOneWidget);
     });

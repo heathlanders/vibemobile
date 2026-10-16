@@ -16,6 +16,10 @@ import '../../chat/presentation/chat_screen.dart';
 import '../../dashboard/presentation/desktop_shell.dart';
 import '../../notes/presentation/notes_panel.dart';
 import '../../chat/presentation/file_browser_screen.dart';
+import '../../editor/presentation/code_editor_screen.dart';
+import '../../editor/presentation/editor_controller.dart';
+import '../../editor/presentation/editor_opener.dart';
+import '../../files/data/project_files_api.dart';
 import '../../projects/data/git_api.dart';
 import '../../sessions/data/session_api.dart';
 import '../../sessions/domain/session.dart';
@@ -23,6 +27,7 @@ import '../../sessions/presentation/model_picker.dart';
 import '../../sessions/presentation/session_actions.dart';
 import '../../terminal/presentation/terminal_screen.dart';
 import '../data/workspace_prefs.dart';
+import '../domain/work_tab.dart';
 import 'command_palette.dart';
 
 /// Desktop workspace (ADR 0015, roadmap phase 1): projects + sessions on the
@@ -50,7 +55,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
   late Future<List<Project>> _projects = _api.projects();
   late Future<List<AgentPreset>> _presets = _api.presets().catchError((_) => <AgentPreset>[]);
 
-  final _tabs = <Session>[];
+  final _tabs = <WorkTab>[];
   final _keys = <String, GlobalKey>{};
   final _titles = <String, String>{}; // live display titles from open chats (ADR 0009)
   String? _active;
@@ -96,8 +101,14 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       if (!mounted) return;
       setState(() {
         for (final id in ids) {
+          if (_tabs.length >= WorkspaceScreen.maxTabs) break;
+          final f = parseFileTabId(id);
+          if (f != null) {
+            _add(WorkTab.file(EditorTarget(ProjectFilesApi(dioFor(widget.creds), f.$1), f.$2)));
+            continue;
+          }
           final s = byId[id];
-          if (s != null && s.canOpen && _tabs.length < WorkspaceScreen.maxTabs) _add(s);
+          if (s != null && s.canOpen) _add(WorkTab.session(s));
         }
         _active = _tabs.any((t) => t.id == active) ? active : _tabs.firstOrNull?.id;
       });
@@ -105,14 +116,14 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     } catch (_) {/* offline at launch — start with no tabs */}
   }
 
-  void _add(Session s) {
-    _tabs.add(s);
-    _keys[s.id] = GlobalKey();
+  void _add(WorkTab t) {
+    _tabs.add(t);
+    _keys[t.id] = GlobalKey();
   }
 
   void _persist() => WorkspacePrefs.save([for (final t in _tabs) t.id], _active);
 
-  Session? _tab(String? id) => id == null ? null : _tabs.where((t) => t.id == id).firstOrNull;
+  WorkTab? _tab(String? id) => id == null ? null : _tabs.where((t) => t.id == id).firstOrNull;
 
   void _open(Session s) {
     _scaffoldKey.currentState?.closeDrawer();
@@ -121,9 +132,41 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
         _snack('Close a tab first (max ${WorkspaceScreen.maxTabs}).');
         return;
       }
-      _add(s);
+      _add(WorkTab.session(s));
     }
     _select(s.id);
+  }
+
+  /// Opens [path] as a file tab (or focuses it if already open).
+  void _openFile(ProjectFilesApi api, String path, {int? line}) {
+    final tab = WorkTab.file(EditorTarget(api, path, line: line));
+    if (_tab(tab.id) == null) {
+      if (_tabs.length >= WorkspaceScreen.maxTabs) {
+        _snack('Close a tab first (max ${WorkspaceScreen.maxTabs}).');
+        return;
+      }
+      _add(tab);
+    }
+    _select(tab.id);
+  }
+
+  /// Closes [id]; a file with unsaved edits asks first.
+  Future<void> _requestClose(String id) async {
+    final f = _tab(id)?.file;
+    if (f != null && ProviderScope.containerOf(context).read(editorDocProvider(f)).dirty) {
+      final discard = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('Discard unsaved changes to ${f.path.split('/').last}?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep editing')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Discard')),
+          ],
+        ),
+      );
+      if (discard != true) return;
+    }
+    if (mounted) _closeTab(id);
   }
 
   /// Make [id] the left pane. Picking the right pane's tab swaps the two.
@@ -162,7 +205,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
         _snack('Close a tab first (max ${WorkspaceScreen.maxTabs}).');
         return;
       }
-      _add(s);
+      _add(WorkTab.session(s));
     }
     setState(() => _split = s.id);
     _persist();
@@ -193,7 +236,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       case 'split':
         _openSplit(s);
       case 'close':
-        _closeTab(s.id);
+        _requestClose(s.id);
       case 'rename':
         if (await renameSession(context, _api, s)) setState(() => _sidebarGen++);
       case 'tags':
@@ -273,7 +316,15 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     if (mounted && _titles[id] != title) setState(() => _titles[id] = title);
   }
 
-  Widget _page(Session s) => KeyedSubtree(
+  Widget _page(WorkTab t) {
+    final f = t.file;
+    if (f != null) {
+      return KeyedSubtree(key: _keys[t.id], child: CodeEditorScreen(api: f.api, path: f.path, line: f.line, embedded: true));
+    }
+    return _sessionPage(t.session!);
+  }
+
+  Widget _sessionPage(Session s) => KeyedSubtree(
         key: _keys[s.id],
         child: s.kind == 'claude'
             ? ChatScreen(
@@ -297,13 +348,13 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     }
     return Stack(fit: StackFit.expand, children: [
       Row(children: [
-        for (final (i, s) in visible.indexed) ...[
+        for (final (i, t) in visible.indexed) ...[
           if (i > 0) const VerticalDivider(width: 1),
-          Expanded(child: _page(s)),
+          Expanded(child: _page(t)),
         ],
       ]),
-      for (final s in _tabs)
-        if (!visible.contains(s)) Visibility(visible: false, maintainState: true, child: _page(s)),
+      for (final t in _tabs)
+        if (!visible.contains(t)) Visibility(visible: false, maintainState: true, child: _page(t)),
     ]);
   }
 
@@ -321,7 +372,10 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       onMenu: _sessionMenu,
       onCreate: _create,
       onNotes: (p) => showProjectNotes(context, widget.creds, p),
-      onFiles: (p) => openProjectFiles(context, widget.creds, p),
+      onFiles: (p) => openProjectFiles(context, widget.creds, p, onOpenFile: (api, path) {
+        Navigator.of(context).pop(); // the browser; the file opens as a tab behind it
+        _openFile(api, path);
+      }),
       onRefresh: _refreshSidebar,
     );
     return CallbackShortcuts(
@@ -330,7 +384,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
         const SingleActivator(LogicalKeyboardKey.tab, control: true): () => _cycle(1),
         const SingleActivator(LogicalKeyboardKey.tab, control: true, shift: true): () => _cycle(-1),
         const SingleActivator(LogicalKeyboardKey.keyW, control: true): () {
-          if (_active != null) _closeTab(_active!);
+          if (_active != null) _requestClose(_active!);
         },
         const SingleActivator(LogicalKeyboardKey.backslash, control: true): _toggleSplit,
       },
@@ -352,7 +406,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                   showChanges: _showChanges,
                   compact: compact,
                   onSelect: _select,
-                  onClose: _closeTab,
+                  onClose: _requestClose,
                   onReorder: _reorder,
                   onSplit: _toggleSplit,
                   onPalette: _palette,
@@ -360,14 +414,14 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
                   onToggleChanges: () => setState(() => _showChanges = !_showChanges),
                 ),
                 const Divider(height: 1),
-                Expanded(child: _panes()),
+                Expanded(child: EditorOpener(open: _openFile, child: _panes())),
               ]),
             ),
-            if (!compact && _showChanges && active != null && active.kind == 'claude') ...[
+            if (!compact && _showChanges && active?.session?.kind == 'claude') ...[
               const VerticalDivider(width: 1),
               SizedBox(
                 width: 300,
-                child: _ChangesPane(key: ValueKey(active.id), creds: widget.creds, session: active),
+                child: _ChangesPane(key: ValueKey(active!.id), creds: widget.creds, session: active.session!),
               ),
             ],
           ]),
@@ -597,7 +651,7 @@ class _TabStrip extends ConsumerStatefulWidget {
     required this.onToggleChanges,
   });
 
-  final List<Session> tabs;
+  final List<WorkTab> tabs;
   final Map<String, String> titles; // live title by session id; beats the stale Session.title
   final String? active;
   final String? split;
@@ -646,7 +700,7 @@ class _TabStripState extends ConsumerState<_TabStrip> {
   /// extent is the content length split evenly.
   void _revealActive() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final i = widget.tabs.indexWhere((s) => s.id == widget.active);
+      final i = widget.tabs.indexWhere((t) => t.id == widget.active);
       if (!mounted || !_scroll.hasClients || i < 0) return;
       final p = _scroll.position;
       final extent = (p.maxScrollExtent + p.viewportDimension - 2 * Spacing.xs) / widget.tabs.length;
@@ -671,12 +725,54 @@ class _TabStripState extends ConsumerState<_TabStrip> {
     _scroll.jumpTo((p.pixels + e.scrollDelta.dy).clamp(0, p.maxScrollExtent));
   }
 
+  Widget _chip(WorkTab t, double label, ColorScheme scheme, Map<String, Attention> attention) {
+    final w = widget;
+    final s = t.session;
+    final f = t.file;
+    final dirty = f != null && ref.watch(editorDocProvider(f).select((d) => d.dirty));
+    final title = f != null ? f.path.split('/').last : (w.titles[t.id] ?? s!.label);
+    return InputChip(
+      selected: t.id == w.active || t.id == w.split,
+      showCheckmark: false,
+      avatar: FlashingBadge(
+        count: attention.containsKey(t.id) ? 1 : 0,
+        showCount: false,
+        child: Icon(f != null ? Icons.description_outlined : (s!.kind == 'claude' ? Icons.smart_toy_outlined : Icons.terminal), size: 16),
+      ),
+      // Fixed width so every tab is the same size (lets
+      // _revealActive compute offsets without measuring).
+      label: SizedBox(
+        width: label,
+        child: Row(children: [
+          Flexible(child: Text(title, overflow: TextOverflow.ellipsis)),
+          if (dirty) ...[
+            const SizedBox(width: Spacing.xs),
+            Container(key: const ValueKey('tab-dirty-dot'), width: 7, height: 7, decoration: BoxDecoration(color: scheme.primary, shape: BoxShape.circle)),
+          ],
+        ]),
+      ),
+      side: attention.containsKey(t.id)
+          ? BorderSide(color: scheme.error)
+          : t.id == w.active
+              ? BorderSide(color: scheme.primary)
+              : null,
+      tooltip: f != null
+          ? f.path
+          : switch (attention[t.id]) {
+              Attention.needsInput => 'Waiting for you',
+              Attention.done => 'Finished — waiting for next steps',
+              null => title, // shrunk labels cut the title short
+            },
+      onPressed: () => w.onSelect(t.id),
+      onDeleted: () => w.onClose(t.id),
+      deleteButtonTooltipMessage: f != null ? 'Close file' : 'Close tab (session keeps running)',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final w = widget;
     final tabs = w.tabs;
-    final titles = w.titles;
-    final active = w.active;
     final split = w.split;
     final scheme = Theme.of(context).colorScheme;
     final attention = ref.watch(sessionAttentionProvider);
@@ -703,40 +799,13 @@ class _TabStripState extends ConsumerState<_TabStrip> {
                   buildDefaultDragHandles: false,
                   onReorderItem: w.onReorder,
                   children: [
-                    for (final (i, s) in tabs.indexed)
+                    for (final (i, t) in tabs.indexed)
                       ReorderableDragStartListener(
-                        key: ValueKey(s.id),
+                        key: ValueKey(t.id),
                         index: i,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
-                          child: InputChip(
-                            selected: s.id == active || s.id == split,
-                            showCheckmark: false,
-                            avatar: FlashingBadge(
-                              count: attention.containsKey(s.id) ? 1 : 0,
-                              showCount: false,
-                              child: Icon(s.kind == 'claude' ? Icons.smart_toy_outlined : Icons.terminal, size: 16),
-                            ),
-                            // Fixed width so every tab is the same size (lets
-                            // _revealActive compute offsets without measuring).
-                            label: SizedBox(
-                              width: label,
-                              child: Text(titles[s.id] ?? s.label, overflow: TextOverflow.ellipsis),
-                            ),
-                            side: attention.containsKey(s.id)
-                                ? BorderSide(color: scheme.error)
-                                : s.id == active
-                                    ? BorderSide(color: scheme.primary)
-                                    : null,
-                            tooltip: switch (attention[s.id]) {
-                              Attention.needsInput => 'Waiting for you',
-                              Attention.done => 'Finished — waiting for next steps',
-                              null => titles[s.id] ?? s.label, // shrunk labels cut the title short
-                            },
-                            onPressed: () => w.onSelect(s.id),
-                            onDeleted: () => w.onClose(s.id),
-                            deleteButtonTooltipMessage: 'Close tab (session keeps running)',
-                          ),
+                          child: _chip(t, label, scheme, attention),
                         ),
                       ),
                   ],
