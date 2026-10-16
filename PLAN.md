@@ -141,8 +141,21 @@ Status and next steps are in `docs/milestones.md` → "Desktop client".
 
 **Multi-device chat ([proposal 58](docs/proposals/58-multi-device-chat.md)).**
 - [x] Chat sessions fan out to every attached client; first permission/dialog answer wins
-- [x] `stop()` closes attached sockets (1012 retry, 4404/4410 stop)
+- [x] `stop()` closes attached sockets (1012 retry, 4404 stop)
 - [ ] On-device check: phone + Windows app on one chat
+
+**Project files API + transfer ([proposal 59](docs/proposals/59-project-files-transfer.md)).**
+- [ ] ADR 0030 project-file writes + `security.md` items + docs-map row
+- [ ] Daemon `project-files.ts`: list / read text (sha) / write text (409 on stale sha), project + session scoped, tests
+- [ ] Daemon raw download / upload (encapsulated plugin, caps, `wx` unless overwrite), tests; `reviewer` pass
+- [ ] App: project Files screen, Download, Upload here (+ desktop drag-drop), progress, overwrite prompt
+- [ ] On-device check: >5 MiB binary round trip on phone and Windows
+
+**Code editor ([proposal 60](docs/proposals/60-code-editor.md)).**
+- [ ] Phase 1: re_editor core — 2 MiB perf check, highlight + themes, folding, find/replace, save + 409 dialog, Markdown/JSON preview, desktop tab, all entry points
+- [ ] Phase 2: format (Prettier, dart format) + lint (ESLint → Error Lens gutter + inline), exec allowlist; `reviewer` pass
+- [ ] Phase 3: git change gutter, blame hint, rainbow brackets, indent guides
+- [ ] On-device check on phone and Windows per proposal 60
 
 ## 7. Open questions / risks
 

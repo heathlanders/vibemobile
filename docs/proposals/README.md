@@ -68,5 +68,7 @@ its wire/schema impact so promotion to a protocol is mechanical.
 | 56 | [Inbox batch: multi-image, panel fit, update prompt, scroll button, resolve_note](56-inbox-batch-oct11.md) | client: `pickMultiImage`, `PhonePanel` header icons, `UpdateDialog`, chat list `Stack`, Usage button on the phone bottom bar; daemon: `resolve_note` in `peer-tools.ts` | building 2026-10-11, on-device check pending |
 | 57 | [Message timestamps; build open Notes in a chat](57-timestamps-notes-to-chat.md) | client: `ChatMessage.at` + `fmtMessageTime` under bubbles; Notes sheet "Build in chat" → new session + `initialDraft` (`buildNotesPrompt`) | building 2026-10-11, on-device check pending |
 | 58 | [Multi-device chat](58-multi-device-chat.md) | daemon: `sockets` set in `ClaudeSession`/`NativeSession` (fan-out), `permission_closed`/`dialog_closed`, `stop(code)` closes sockets; client: `permission_closed` case | building 2026-10-16 |
+| 59 | [Project files API + file transfer](59-project-files-transfer.md) | daemon: `project-files.ts` (project+session scoped list/read/write text with sha, raw download/upload); client: project Files screen, Download / Upload here | accepted 2026-10-16 |
+| 60 | [Built-in code editor](60-code-editor.md) | client: `features/editor` on re_editor (highlight, find/replace, save, preview, desktop tab); daemon: format/lint exec, git head/blame | accepted 2026-10-16 |
 
 Status: `idea` → `accepted` → `building` → `shipped` (then move detail to the ADR/protocol).
