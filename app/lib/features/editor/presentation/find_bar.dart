@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:re_editor/re_editor.dart';
 
+import '../../../core/spacing.dart';
+
 const _rowHeight = 40.0;
 const _panelWidth = 400.0;
 
@@ -34,7 +36,7 @@ class EditorFindBar extends StatelessWidget implements PreferredSizeWidget {
       alignment: Alignment.topRight,
       child: Material(
         color: scheme.surfaceContainerHigh,
-        elevation: 2,
+        elevation: 1,
         child: SizedBox(
           width: _panelWidth,
           height: preferredSize.height,
@@ -42,7 +44,7 @@ class EditorFindBar extends StatelessWidget implements PreferredSizeWidget {
             SizedBox(
               height: _rowHeight,
               child: Row(children: [
-                Expanded(child: _field(controller.findInputController, controller.findInputFocusNode, 'Find')),
+                Expanded(child: _field(context, controller.findInputController, controller.findInputFocusNode, 'Find')),
                 _toggle(context, 'Aa', 'Match case', v.option.caseSensitive, controller.toggleCaseSensitive),
                 _toggle(context, '.*', 'Regex', v.option.regex, controller.toggleRegex),
                 SizedBox(width: 44, child: Text(result, textAlign: TextAlign.center, style: Theme.of(context).textTheme.labelSmall)),
@@ -55,7 +57,7 @@ class EditorFindBar extends StatelessWidget implements PreferredSizeWidget {
               SizedBox(
                 height: _rowHeight,
                 child: Row(children: [
-                  Expanded(child: _field(controller.replaceInputController, controller.replaceInputFocusNode, 'Replace')),
+                  Expanded(child: _field(context, controller.replaceInputController, controller.replaceInputFocusNode, 'Replace')),
                   _icon(Icons.done, 'Replace', v.result == null ? null : controller.replaceMatch),
                   _icon(Icons.done_all, 'Replace All', v.result == null ? null : controller.replaceAllMatches),
                 ]),
@@ -66,14 +68,14 @@ class EditorFindBar extends StatelessWidget implements PreferredSizeWidget {
     ));
   }
 
-  Widget _field(TextEditingController c, FocusNode f, String hint) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+  Widget _field(BuildContext context, TextEditingController c, FocusNode f, String hint) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Spacing.xs, vertical: Spacing.xs),
         child: TextField(
           controller: c,
           focusNode: f,
           maxLines: 1,
-          style: const TextStyle(fontSize: 13),
-          decoration: InputDecoration(hintText: hint, isDense: true, border: const OutlineInputBorder(), contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8)),
+          style: Theme.of(context).textTheme.bodyMedium,
+          decoration: InputDecoration(hintText: hint, isDense: true, border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(Spacing.sm)),
         ),
       );
 
@@ -82,8 +84,8 @@ class EditorFindBar extends StatelessWidget implements PreferredSizeWidget {
         child: InkWell(
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-            child: Text(label, style: TextStyle(fontSize: 13, fontWeight: on ? FontWeight.w700 : FontWeight.w400, color: on ? Theme.of(context).colorScheme.primary : null)),
+            padding: const EdgeInsets.symmetric(horizontal: Spacing.xs, vertical: Spacing.sm),
+            child: Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: on ? FontWeight.w700 : FontWeight.w400, color: on ? Theme.of(context).colorScheme.primary : null)),
           ),
         ),
       );

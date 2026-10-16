@@ -99,7 +99,8 @@ class _CodeViewState extends State<CodeView> {
     final hl = dark ? vs2015Theme : vsTheme;
     final root = hl['root']!;
     final mode = modeFor(widget.language);
-    final numberStyle = TextStyle(fontFamily: AppTheme.monoFontFamily, fontSize: 12, height: 1.4, color: dark ? const Color(0xFF858585) : const Color(0xFF237893));
+    final scheme = Theme.of(context).colorScheme;
+    final numberStyle = TextStyle(fontFamily: AppTheme.monoFontFamily, fontSize: 12, height: 1.4, color: scheme.onSurfaceVariant);
     final editor = CodeEditor(
       controller: widget.controller,
       scrollController: _scroll,
@@ -112,9 +113,9 @@ class _CodeViewState extends State<CodeView> {
         fontHeight: 1.4,
         textColor: root.color,
         backgroundColor: root.backgroundColor,
-        cursorColor: dark ? const Color(0xFFAEAFAD) : const Color(0xFF000000),
-        cursorLineColor: dark ? const Color(0x33FFFFFF) : const Color(0x22000000),
-        selectionColor: dark ? const Color(0xFF264F78) : const Color(0xFFADD6FF),
+        cursorColor: scheme.primary,
+        cursorLineColor: scheme.onSurface.withValues(alpha: 0.08),
+        selectionColor: scheme.primary.withValues(alpha: 0.3),
         codeTheme: mode == null ? null : CodeHighlightTheme(languages: {widget.language: mode.themeMode}, theme: hl),
       ),
       indicatorBuilder: (context, editing, chunk, notifier) => Row(children: [
