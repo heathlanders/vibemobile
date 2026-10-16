@@ -86,7 +86,7 @@ async function setup(fake = makeFake(), waitResult = true) {
   s1.attach(ws);
   s1.start();
   registry.set("s1", s1);
-  s1.pushUser("first");
+  s1.pushUser("first", [], ws); // as session-ws does: the sender gets user_ack
   if (waitResult) await waitFor(() => ws.frames.some((f: any) => f.t === "result"));
   else await waitFor(() => fake.state.inputs.length === 1);
   const msgId = (db.prepare("SELECT id FROM messages WHERE session_id='s1' AND role='user'").get() as any).id as string;

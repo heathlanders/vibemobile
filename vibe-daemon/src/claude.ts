@@ -429,7 +429,7 @@ export class ClaudeSession implements EngineSession {
   // the ownership gate — a turn can't pull another session's image). With images
   // the SDK content becomes an array of text + image blocks (spike-image.ts: the
   // SDK forwards {type:'image', source:{base64}} in the input stream).
-  pushUser(text: string, attachmentIds: string[] = []): void {
+  pushUser(text: string, attachmentIds: string[] = [], from?: WebSocket): void {
     if (this.stopped) return; // a frame still in flight as stop() closed the socket
     this.lastActivityMs = Date.now();
     const imgs = attachmentIds
@@ -446,9 +446,11 @@ export class ClaudeSession implements EngineSession {
     // nothing echoes it back (ADR 0023, M8 spike).
     const sdkUuid = randomUUID();
     const messageId = this.insert("user", text, refs.length ? JSON.stringify({ images: refs }) : null, sdkUuid);
-    // The client added this bubble locally; tell it the row id so it can offer
+    // The sender added this bubble locally; tell it the row id so it can offer
     // "rewind files to here" without a reattach (claude-ws.md `user_ack`).
-    this.send({ t: "user_ack", messageId });
+    // Every other attached device gets the turn itself (proposal 58).
+    const turn = { t: "user_turn", text, messageId, images: refs.map((r) => r.id), ts: nowIso() };
+    for (const ws of this.sockets) this.sendTo(ws, ws === from ? { t: "user_ack", messageId } : turn);
     this.status.begin();
     // Heuristic title now (first turn only), LLM refine after the turn resolves.
     this.titlePrompt = titleOnFirstUserTurn(this.db, this.id, this.cwd, text, (f) => this.send(f)) ?? this.titlePrompt;

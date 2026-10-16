@@ -65,6 +65,16 @@ void main() {
     expect(c.pendingPermission, isNull);
   });
 
+  test('user_turn from another device adds the bubble with its row id (proposal 58)', () {
+    final c = controller();
+    c.applyFrame({'t': 'user_turn', 'text': 'hi', 'messageId': 'm1', 'images': ['a1'], 'ts': '2026-10-16T18:00:00Z'});
+    final m = c.messages.single;
+    expect(m.role, ChatRole.user);
+    expect(m.text, 'hi');
+    expect(m.serverId, 'm1');
+    expect(m.images, ['a1']);
+  });
+
   test('permission_request carries an optional diffPreview (proposal 02)', () {
     final c = controller();
     c.applyFrame({

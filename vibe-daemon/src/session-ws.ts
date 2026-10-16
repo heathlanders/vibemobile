@@ -148,7 +148,7 @@ export function registerSessionWs(
           return; // permission prompts live in the CLI's TUI — answer via /tty
         }
         if (f.t === "user" && typeof f.text === "string")
-          session.pushUser(f.text, Array.isArray(f.images) ? f.images.filter((x: any) => typeof x === "string") : []);
+          session.pushUser(f.text, Array.isArray(f.images) ? f.images.filter((x: any) => typeof x === "string") : [], socket);
         // Attribute the decision to the device that answered (security.md #5).
         else if (f.t === "permission" && typeof f.toolUseID === "string")
           session.onPermission(f.toolUseID, !!f.allow, deviceId);
