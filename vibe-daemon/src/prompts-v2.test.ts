@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import Fastify from "fastify";
 import { openDb } from "./db.js";
 import { registerPromptRoutes } from "./prompts.js";
-import { ImproveBusy, improvePrompt } from "./prompt-improve.js";
+import { DEEPER_SYSTEM, IMPROVE_SYSTEM, ImproveBusy, improvePrompt } from "./prompt-improve.js";
 
 function setup(improve?: (t: string, cwd: string) => Promise<string>) {
   const db = openDb(":memory:");
@@ -94,4 +94,28 @@ test("improvePrompt runs locked down (no tools/settings/MCP) and strips a code f
 
   const empty = (() => (async function* () {})()) as any;
   await assert.rejects(improvePrompt("x", "/tmp", empty), /no rewrite/);
+});
+
+test("POST /prompts/improve: mode is whitelisted and passed through (default improve)", async () => {
+  const seen: (string | undefined)[] = [];
+  const { app } = setup(async (_t, _c, mode) => (seen.push(mode), "ok"));
+  const post = (payload: object) => app.inject({ method: "POST", url: "/prompts/improve", payload });
+  assert.equal((await post({ text: "a", mode: "deeper" })).statusCode, 200);
+  assert.equal((await post({ text: "a" })).statusCode, 200);
+  assert.equal((await post({ text: "a", mode: "evil" })).statusCode, 400);
+  assert.equal((await post({ text: "a", mode: 3 })).statusCode, 400);
+  assert.deepEqual(seen, ["deeper", "improve"]);
+});
+
+test("improvePrompt deeper mode uses DEEPER_SYSTEM with the same lockdown", async () => {
+  let opts: any;
+  const fake = (p: { options: any }) => {
+    opts = p.options;
+    return (async function* () { yield { type: "result", subtype: "success", result: "deep" }; })();
+  };
+  assert.equal(await improvePrompt("x", "/tmp", fake as any, "deeper"), "deep");
+  assert.equal(opts.systemPrompt, DEEPER_SYSTEM);
+  assert.deepEqual([opts.tools, opts.settingSources, opts.mcpServers], [[], [], {}]);
+  await improvePrompt("x", "/tmp", fake as any);
+  assert.equal(opts.systemPrompt, IMPROVE_SYSTEM);
 });

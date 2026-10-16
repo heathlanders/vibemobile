@@ -24,6 +24,7 @@ class PromptApi {
     String? tags,
     String? projectId,
     String? varsJson,
+    bool alwaysApply = false,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>('/prompts', data: {
       'title': title,
@@ -31,6 +32,7 @@ class PromptApi {
       'tags': ?tags,
       'project_id': ?projectId,
       'vars_json': ?varsJson,
+      if (alwaysApply) 'always_apply': true,
     });
     return Prompt.fromJson(res.data!);
   }
@@ -52,10 +54,11 @@ class PromptApi {
   }
 
   /// Rewrite [text] against the prompting checklist (server-side model call).
-  Future<String> improve(String text) async {
+  /// [mode] is 'improve' or 'deeper' ("Go deeper", proposal 61).
+  Future<String> improve(String text, {String mode = 'improve'}) async {
     final res = await _dio.post<Map<String, dynamic>>(
       '/prompts/improve',
-      data: {'text': text},
+      data: {'text': text, 'mode': mode},
       options: Options(receiveTimeout: const Duration(seconds: 90)),
     );
     final out = res.data?['text'];

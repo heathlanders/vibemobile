@@ -283,11 +283,12 @@ export class NativeSession implements EngineSession {
       this.send({ t: "result", subtype: "error", cost: 0 });
       return;
     }
+    const rules = rulesForPrompt(this.db, (this.db.prepare("SELECT project_id FROM sessions WHERE id = ?").get(this.id) as { project_id: string | null } | undefined)?.project_id ?? null);
     const result = this.streamTextFn({
       model,
       system:
         `You are a coding assistant operating in the project directory ${this.cwd} on the user's machine, reached from their phone. Be concise.` +
-        (rulesForPrompt(this.db) ? `\n\n${rulesForPrompt(this.db)}` : ""),
+        (rules ? `\n\n${rules.text}` : ""),
       messages: this.messages,
       tools,
       // Chat = single step; with tools, allow a bounded agent loop.

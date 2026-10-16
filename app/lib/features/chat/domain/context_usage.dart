@@ -37,6 +37,7 @@ class ContextUsage {
     this.categories = const [],
     this.memoryFiles = const [],
     this.rulesApplied,
+    this.ruleNames = const [],
     this.model,
   });
 
@@ -59,6 +60,9 @@ class ContextUsage {
   /// Whether the daemon's session rules (ADR 0026) were appended when THIS session started;
   /// null from daemons that don't say.
   final bool? rulesApplied;
+
+  /// Names of the rules/packs appended to this session (ADR 0031); empty from older daemons.
+  final List<String> ruleNames;
 
   // Every read is type-checked: a malformed frame must degrade to zeros, never throw out
   // of the frame handler (that would stall the whole chat).
@@ -84,6 +88,11 @@ class ContextUsage {
               MemoryFileInfo(m['path'] as String, m['type'] is String ? m['type'] as String : '', n(m['tokens'])),
       ],
       rulesApplied: f['rules'] is bool ? f['rules'] as bool : null,
+      ruleNames: [
+        if (f['ruleNames'] is List)
+          for (final n in f['ruleNames'] as List)
+            if (n is String) n,
+      ],
     );
   }
 

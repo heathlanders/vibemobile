@@ -114,9 +114,9 @@ class _PromptListScreenState extends State<PromptListScreen> {
                       return ListTile(
                         leading: Icon(p.isGlobal ? Icons.public : Icons.folder_outlined),
                         title: Text(p.title),
-                        subtitle: p.tags.isEmpty && p.useCount == 0
+                        subtitle: p.tags.isEmpty && p.useCount == 0 && !p.alwaysApply
                             ? null
-                            : Text([...p.tags, if (p.useCount > 0) 'used ${p.useCount}×'].join(' · ')),
+                            : Text([if (p.alwaysApply) 'Always on', ...p.tags, if (p.useCount > 0) 'used ${p.useCount}×'].join(' · ')),
                         onTap: () => Navigator.of(context).push(
                           sharedAxisRoute(PromptUseScreen(creds: widget.creds, prompt: p)),
                         ),

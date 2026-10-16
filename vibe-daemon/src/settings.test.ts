@@ -146,16 +146,44 @@ test("settings routes need the bearer token", async () => {
 
 // ---- rules reach the models --------------------------------------------------------------------
 
-test("rulesForPrompt: on by default, off when disabled or blank, custom text used verbatim (trimmed)", () => {
+test("rulesForPrompt: storage rules + seeded packs; off/blank storage rules leave the packs", () => {
   const db = openDb(":memory:");
-  assert.equal(rulesForPrompt(db), DEFAULT_RULES.trim());
+  const all = rulesForPrompt(db, null)!;
+  assert.deepEqual(all.names, ["Storage rules", "Ambition (Rieseberg)", "Karpathy guidelines"]);
+  assert.ok(all.text.startsWith(DEFAULT_RULES.trim()));
   applySettings(db, { "rules.text": "  Be nice.  " }, null);
-  assert.equal(rulesForPrompt(db), "Be nice.");
+  assert.ok(rulesForPrompt(db, null)!.text.startsWith("Be nice.\n\n"));
   applySettings(db, { "rules.text": "   " }, null);
-  assert.equal(rulesForPrompt(db), null, "blank text = nothing to append");
+  assert.deepEqual(rulesForPrompt(db, null)!.names, ["Ambition (Rieseberg)", "Karpathy guidelines"], "blank text = no storage rules");
   applySettings(db, { "rules.text": null, "rules.enabled": false }, null);
-  assert.equal(rulesForPrompt(db), null);
+  assert.deepEqual(rulesForPrompt(db, null)!.names, ["Ambition (Rieseberg)", "Karpathy guidelines"], "rules.enabled gates storage text only");
+  db.prepare("UPDATE prompts SET always_apply = 0").run();
+  assert.equal(rulesForPrompt(db, null), null, "nothing to append");
 });
+
+test("rulesForPrompt: project-scoped packs only reach their project; blank bodies and over-cap packs are skipped", () => {
+  const db = openDb(":memory:");
+  db.prepare("UPDATE prompts SET always_apply = 0").run();
+  db.prepare("INSERT INTO projects (id, path, name, type) VALUES ('p1','/tmp/a','a','unknown'), ('p2','/tmp/b','b','unknown')").run();
+  const add = (id: string, body: string, project: string | null, at: string) =>
+    db.prepare("INSERT INTO prompts (id, title, body, project_id, created_at, updated_at, always_apply) VALUES (?,?,?,?,?,?,1)").run(id, id, body, project, at, at);
+  add("g", "global rule", null, "2026-01-01");
+  add("only1", "p1 rule", "p1", "2026-01-02");
+  add("blank", "   ", null, "2026-01-03");
+  assert.deepEqual(rulesForPrompt(db, "p1")!.names, ["Storage rules", "g", "only1"]);
+  assert.deepEqual(rulesForPrompt(db, "p2")!.names, ["Storage rules", "g"]);
+  assert.deepEqual(rulesForPrompt(db, null)!.names, ["Storage rules", "g"]);
+  add("huge", "x".repeat(20_000), null, "2026-01-04");
+  add("small", "tail", null, "2026-01-05");
+  assert.deepEqual(rulesForPrompt(db, "p1")!.names, ["Storage rules", "g", "only1", "small"], "a pack past the cap is skipped, later ones still fit");
+});
+
+// The seeded packs (proposal 61) are always on; these tests are about the storage rules alone.
+const withoutPacks = () => {
+  const db = openDb(":memory:");
+  db.prepare("UPDATE prompts SET always_apply = 0").run();
+  return db;
+};
 
 function claudeSession(db: ReturnType<typeof openDb>) {
   const seen: { options?: any } = {};
@@ -176,27 +204,39 @@ function claudeSession(db: ReturnType<typeof openDb>) {
 }
 
 test("every Claude session gets the rules appended to the Claude Code preset (so CLAUDE.md still loads)", () => {
-  const db = openDb(":memory:");
+  const db = withoutPacks();
   const seen = claudeSession(db);
   assert.deepEqual(seen.options.systemPrompt, { type: "preset", preset: "claude_code", append: DEFAULT_RULES.trim() });
 });
 
 test("rules off → no systemPrompt override at all (today's behaviour); custom text is what is sent", () => {
-  const off = openDb(":memory:");
+  const off = withoutPacks();
   applySettings(off, { "rules.enabled": false }, null);
   assert.equal(claudeSession(off).options.systemPrompt, undefined);
-  const custom = openDb(":memory:");
+  const custom = withoutPacks();
   applySettings(custom, { "rules.text": "Only use /data." }, null);
   assert.equal(claudeSession(custom).options.systemPrompt.append, "Only use /data.");
 });
 
 test("a setting changed mid-life applies to the NEXT session start, not a running one", () => {
-  const db = openDb(":memory:");
+  const db = withoutPacks();
   const first = claudeSession(db);
   applySettings(db, { "rules.text": "Changed." }, null);
   assert.equal(first.options.systemPrompt.append, DEFAULT_RULES.trim(), "the running session keeps what it started with");
   db.prepare("DELETE FROM sessions").run();
   assert.equal(claudeSession(db).options.systemPrompt.append, "Changed.");
+});
+
+test("always-apply packs reach Claude sessions of their project only, and the names are reported", () => {
+  const db = withoutPacks();
+  db.prepare("INSERT INTO projects (id, path, name, type) VALUES ('p','/tmp','p','unknown'), ('other','/tmp/o','o','unknown')").run();
+  const now = new Date().toISOString();
+  const add = (id: string, project: string) =>
+    db.prepare("INSERT INTO prompts (id, title, body, project_id, created_at, updated_at, always_apply) VALUES (?,?,?,?,?,?,1)").run(id, id, `body-${id}`, project, now, now);
+  add("mine", "p");
+  add("theirs", "other");
+  const append = claudeSession(db).options.systemPrompt.append as string;
+  assert.ok(append.includes("body-mine") && !append.includes("body-theirs"));
 });
 
 test("native (non-Claude) models get the same rules in their system prompt", async () => {

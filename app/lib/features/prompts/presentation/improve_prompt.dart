@@ -3,12 +3,38 @@ import 'package:flutter/material.dart';
 import '../../../core/spacing.dart';
 import '../data/prompt_api.dart';
 
-/// "Improve prompt" (ADR 0018): ask the server to rewrite [text], then show the
-/// original and the rewrite side by side (stacked on narrow screens). Returns
-/// the rewrite if accepted, null if cancelled or it failed (error shown).
+/// "Improve prompt" (ADR 0018): the user picks Improve or Go deeper (proposal 61), the
+/// server rewrites [text], then the original and the rewrite show side by side
+/// (stacked on narrow screens). Returns the rewrite if accepted, null if
+/// cancelled or it failed (error shown).
 Future<String?> improvePromptFlow(BuildContext context, PromptApi api, String text) async {
   if (text.trim().isEmpty) return null;
-  final future = api.improve(text);
+  final mode = await showDialog<String>(
+    context: context,
+    builder: (ctx) => SimpleDialog(
+      title: const Text('Improve prompt'),
+      children: [
+        SimpleDialogOption(
+          onPressed: () => Navigator.pop(ctx, 'improve'),
+          child: const ListTile(
+            leading: Icon(Icons.auto_fix_high_outlined),
+            title: Text('Improve'),
+            subtitle: Text('Clearer goal, checkable success, explicit scope'),
+          ),
+        ),
+        SimpleDialogOption(
+          onPressed: () => Navigator.pop(ctx, 'deeper'),
+          child: const ListTile(
+            leading: Icon(Icons.layers_outlined),
+            title: Text('Go deeper'),
+            subtitle: Text('Pro-grade methods, raw sources and external evidence, without adding scope'),
+          ),
+        ),
+      ],
+    ),
+  );
+  if (mode == null || !context.mounted) return null;
+  final future = api.improve(text, mode: mode);
   return showDialog<String>(
     context: context,
     builder: (ctx) => AlertDialog(

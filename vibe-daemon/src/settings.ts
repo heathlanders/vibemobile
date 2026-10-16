@@ -137,11 +137,31 @@ export function applySettings(
 
 // ---- consumers -------------------------------------------------------------------
 
-// The text appended to a session's system prompt, or null when rules are off/blank.
-export function rulesForPrompt(db: DB): string | null {
-  if (!getSetting<boolean>(db, "rules.enabled")) return null;
-  const text = getSetting<string>(db, "rules.text").trim();
-  return text ? text : null;
+// Total size of the text appended to a session's system prompt (ADR 0031).
+const MAX_RULES_CHARS = 16_000;
+
+// The text appended to a session's system prompt, or null when there is none: the storage
+// rules (if enabled and non-blank, ADR 0026) then every always-apply prompt that is global
+// or scoped to [projectId] (ADR 0031). `names` is what the context sheet lists.
+export function rulesForPrompt(db: DB, projectId: string | null): { text: string; names: string[] } | null {
+  const parts: { name: string; text: string }[] = [];
+  if (getSetting<boolean>(db, "rules.enabled")) {
+    const text = getSetting<string>(db, "rules.text").trim();
+    if (text) parts.push({ name: "Storage rules", text });
+  }
+  const packs = db
+    .prepare("SELECT title, body FROM prompts WHERE always_apply = 1 AND (project_id IS NULL OR project_id = ?) ORDER BY created_at, id")
+    .all(projectId) as { title: string; body: string }[];
+  let total = parts.reduce((n, p) => n + p.text.length, 0);
+  for (const p of packs) {
+    const text = p.body.trim();
+    if (!text) continue;
+    if (total + text.length > MAX_RULES_CHARS) continue; // skip a pack that would push past the cap
+    total += text.length;
+    parts.push({ name: p.title, text });
+  }
+  if (parts.length === 0) return null;
+  return { text: parts.map((p) => p.text).join("\n\n"), names: parts.map((p) => p.name) };
 }
 
 export const diskAlertPercent = (db: DB): number => getSetting<number>(db, "disk.alert_percent");

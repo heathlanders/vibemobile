@@ -58,6 +58,12 @@ void main() {
       expect(u.rulesApplied, isNull, reason: 'a non-bool is "unknown", not false');
     });
 
+    test('ruleNames: strings kept, junk skipped, absent = empty', () {
+      final u = ContextUsage.fromFrame({'rules': true, 'ruleNames': ['Storage rules', 3, 'Ambition (Rieseberg)']});
+      expect(u.ruleNames, ['Storage rules', 'Ambition (Rieseberg)']);
+      expect(ContextUsage.fromFrame({'rules': true}).ruleNames, isEmpty);
+    });
+
     test('tolerates a bare/odd frame (never throws)', () {
       final u = ContextUsage.fromFrame({'t': 'context', 'categories': 'nope'});
       expect([u.tokens, u.max, u.percent, u.categories], [0, 0, 0, isEmpty]);
