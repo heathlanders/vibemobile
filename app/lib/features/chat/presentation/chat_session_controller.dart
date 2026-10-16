@@ -273,9 +273,16 @@ class ChatSessionController extends ChangeNotifier with WidgetsBindingObserver {
         final i = messages.lastIndexWhere((m) => m.role == ChatRole.user && m.serverId == null);
         if (id != null && i >= 0) messages[i].serverId = id;
       case 'user_turn':
-        // A user turn typed on the PC — or our own reply echoed back through the
-        // CLI's transcript (sendUser doesn't add it locally while mirroring).
-        messages.add(ChatMessage(role: ChatRole.user, text: f['text'] as String? ?? ''));
+        // A user turn typed on another device (proposal 58) or on the PC — or our own
+        // reply echoed back through the CLI's transcript (sendUser doesn't add it
+        // locally while mirroring).
+        messages.add(ChatMessage(
+          role: ChatRole.user,
+          text: f['text'] as String? ?? '',
+          images: ((f['images'] as List?) ?? const []).cast<String>(),
+          ts: f['ts'] as String?,
+          serverId: f['messageId'] as String?,
+        ));
       case 'delta':
         (_streaming ??= _newAssistantBubble()).text += (f['text'] as String? ?? '');
       case 'thinking_delta':

@@ -91,8 +91,10 @@ test("two attached sockets both receive the turn; stop() closes both with 1012",
   const ws2 = fakeWs();
   s.attach(ws1);
   s.attach(ws2);
-  s.pushUser("hi");
+  s.pushUser("hi", [], ws1);
   await waitFor(() => ws1.frames.some((f: any) => f.t === "result") && ws2.frames.some((f: any) => f.t === "result"));
+  assert.equal(ws2.frames.find((f: any) => f.t === "user_turn")?.text, "hi", "the other device sees the turn");
+  assert.equal(ws1.frames.some((f: any) => f.t === "user_turn"), false, "the sender already shows it");
   s.detach(ws1);
   assert.equal(s.isReapable(0), false);
   s.stop();

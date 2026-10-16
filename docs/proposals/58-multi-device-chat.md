@@ -15,6 +15,9 @@ requests went to the other device, so it showed "Approval timed out".
   that socket, `send` broadcasts to all (each still gets its own history/pending replay on attach).
   `isReapable` and the "nobody attached" checks (push notify, dialog auto-cancel) mean the set is
   empty.
+- **User turns.** The sender adds its own bubble; the daemon sends it `user_ack` and every other
+  socket `user_turn {text, messageId, images, ts}` (found in the on-device test: typed text only
+  showed on the device that sent it).
 - **First answer wins.** `PermissionGate` broadcasts `permission_closed {toolUseID}` on every
   resolution (allow, deny, timeout, auto-allow flush, session end); a second answer returns false.
   Dialogs broadcast the existing `dialog_closed {dialogId}` on response and on timeout. The app

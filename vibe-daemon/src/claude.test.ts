@@ -190,6 +190,23 @@ test("every attached socket gets the turn's frames; detach removes only that soc
   assert.equal(s.isReapable(0), true, "reapable once both detach");
 });
 
+test("a user turn: the sender gets user_ack, every other socket gets user_turn", () => {
+  const db = seedDb();
+  const s = new ClaudeSession(db, "s1", "/tmp", fakeQuery);
+  const ws1 = fakeWs();
+  const ws2 = fakeWs();
+  s.attach(ws1);
+  s.attach(ws2);
+  s.pushUser("hi from phone", [], ws1);
+  const ack = ws1.frames.find((f: any) => f.t === "user_ack");
+  const turn = ws2.frames.find((f: any) => f.t === "user_turn");
+  assert.ok(ack?.messageId, "sender learns the row id");
+  assert.equal(ws1.frames.some((f: any) => f.t === "user_turn"), false, "sender already shows its bubble");
+  assert.equal(turn?.text, "hi from phone");
+  assert.equal(turn?.messageId, ack.messageId);
+  assert.equal(ws2.frames.some((f: any) => f.t === "user_ack"), false);
+});
+
 test("permission answered via one socket closes the card on both; a second answer is refused", async () => {
   const db = seedDb();
   const s = new ClaudeSession(db, "s1", "/tmp", fakeQuery);

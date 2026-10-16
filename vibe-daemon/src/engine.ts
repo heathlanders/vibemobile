@@ -38,7 +38,7 @@ export interface EngineSession {
   // Removes only [ws]; other attached clients keep receiving frames.
   detach(ws: WebSocket): void;
   // A user turn (text + optional uploaded image ids).
-  pushUser(text: string, imageIds?: string[]): void;
+  pushUser(text: string, imageIds?: string[], from?: WebSocket): void;
   // Answer a pending tool-approval request.
   // deviceId = the paired device that answered, for the audit trail
   // (security.md #5). Null when unknown (e.g. an auto-allow flush).

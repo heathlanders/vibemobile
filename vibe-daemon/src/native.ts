@@ -221,7 +221,7 @@ export class NativeSession implements EngineSession {
 
   // ---- input / turns -------------------------------------------------------
 
-  pushUser(text: string, imageIds: string[] = []): void {
+  pushUser(text: string, imageIds: string[] = [], from?: WebSocket): void {
     if (this.stopped) return; // a frame still in flight as stop() closed the socket
     this.lastActivityMs = Date.now();
     const imgs = imageIds
@@ -234,7 +234,10 @@ export class NativeSession implements EngineSession {
       .filter((r): r is { id: string; media_type: string; data: Buffer } => !!r);
 
     const refs = imgs.map((i) => ({ id: i.id, mediaType: i.media_type }));
-    this.insert("user", text, refs.length ? JSON.stringify({ images: refs }) : null);
+    const messageId = this.insert("user", text, refs.length ? JSON.stringify({ images: refs }) : null);
+    // The sender shows its own bubble; every other attached device gets the turn (proposal 58).
+    const turn = { t: "user_turn", text, messageId, images: refs.map((r) => r.id), ts: nowIso() };
+    for (const ws of this.sockets) if (ws !== from) this.sendTo(ws, turn);
     // Heuristic title now (first turn only), LLM refine once the turn resolves.
     this.titlePrompt = titleOnFirstUserTurn(this.db, this.id, this.cwd, text, (f) => this.send(f)) ?? this.titlePrompt;
 
@@ -442,10 +445,12 @@ export class NativeSession implements EngineSession {
     this.messages.push(...replayHistory(rows));
   }
 
-  private insert(role: string, content: string | null, toolJson: string | null): void {
+  private insert(role: string, content: string | null, toolJson: string | null): string {
+    const id = randomUUID();
     this.db
       .prepare("INSERT INTO messages (id, session_id, role, content, tool_json, ts) VALUES (?,?,?,?,?,?)")
-      .run(randomUUID(), this.id, role, content, toolJson, nowIso());
+      .run(id, this.id, role, content, toolJson, nowIso());
+    return id;
   }
 
   private attachToolResult(toolUseId: string, content: string, isError: boolean): void {
