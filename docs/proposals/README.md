@@ -71,6 +71,6 @@ its wire/schema impact so promotion to a protocol is mechanical.
 | 59 | [Project files API + file transfer](59-project-files-transfer.md) | daemon: `project-files.ts` (project+session scoped list/read/write text with sha, raw download/upload); client: project Files screen, Download / Upload here | accepted 2026-10-16 |
 | 60 | [Built-in code editor](60-code-editor.md) | client: `features/editor` on re_editor (highlight, find/replace, save, preview, desktop tab); daemon: format/lint exec, git head/blame | accepted 2026-10-16 |
 | 61 | [Rule packs + Go deeper](61-rule-packs-and-go-deeper.md) | daemon: `prompts.always_apply`, `rulesForPrompt(db, projectId)` appends flagged prompts, `prompt-improve.ts` deeper mode; client: Apply-to-every-session switch, Improve/Go deeper picker, rule names in context sheet | building 2026-10-16 |
-| 62 | [Code editor in its own window](62-editor-window.md) | client (desktop): `desktop_multi_window` editor window with its own tab strip; `EditorOpener` routes there; runner registers plugins per engine | idea 2026-10-16 |
+| 62 | [Code editor in its own window](62-editor-window.md) | client (desktop): second process (`--editor`), file inbox + lock, own tab strip, updater quits it | building 2026-10-16 |
 
 Status: `idea` → `accepted` → `building` → `shipped` (then move detail to the ADR/protocol).

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -19,6 +20,7 @@ import '../../chat/presentation/file_browser_screen.dart';
 import '../../editor/presentation/code_editor_screen.dart';
 import '../../editor/presentation/editor_controller.dart';
 import '../../editor/presentation/editor_opener.dart';
+import '../../editor/window/editor_launcher.dart';
 import '../../files/data/project_files_api.dart';
 import '../../projects/data/git_api.dart';
 import '../../sessions/data/session_api.dart';
@@ -104,6 +106,11 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
           if (_tabs.length >= WorkspaceScreen.maxTabs) break;
           final f = parseFileTabId(id);
           if (f != null) {
+            // Windows keeps files in the editor window: forward old file tabs once, then drop them.
+            if (Platform.isWindows) {
+              openInEditorWindow(f.$1, f.$2);
+              continue;
+            }
             _add(WorkTab.file(EditorTarget(ProjectFilesApi(dioFor(widget.creds), f.$1), f.$2)));
             continue;
           }
@@ -137,8 +144,13 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     _select(s.id);
   }
 
-  /// Opens [path] as a file tab (or focuses it if already open).
+  /// Opens [path] as a file tab (or focuses it if already open). On Windows it goes to the
+  /// separate editor window instead (proposal 62).
   void _openFile(ProjectFilesApi api, String path, {int? line}) {
+    if (Platform.isWindows) {
+      openInEditorWindow(api.scope, path, line: line);
+      return;
+    }
     final tab = WorkTab.file(EditorTarget(api, path, line: line));
     if (_tab(tab.id) == null) {
       if (_tabs.length >= WorkspaceScreen.maxTabs) {
