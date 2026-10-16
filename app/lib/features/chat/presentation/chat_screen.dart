@@ -1327,6 +1327,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
               _Composer(
                 mode: _controller.external == null ? _controller.mode : null, // a mirrored CLI owns its own mode
                 onModeTap: _pickMode,
+                onImprove: _improveDraft,
+                onResumeHandoff: _openFresh,
                 controller: _input,
                 inputFormatters: [PasteCollapseFormatter(_pastes)],
                 onTapField: _openPasteAtCaret,
@@ -2031,6 +2033,8 @@ class _Composer extends StatelessWidget {
   const _Composer({
     required this.mode,
     required this.onModeTap,
+    required this.onImprove,
+    required this.onResumeHandoff,
     required this.controller,
     required this.inputFormatters,
     required this.onTapField,
@@ -2047,6 +2051,8 @@ class _Composer extends StatelessWidget {
   });
   final SessionMode? mode; // null → no chip (old daemon, or a mirrored CLI session)
   final VoidCallback onModeTap;
+  final VoidCallback onImprove; // Improve / Go deeper on the draft (ADR 0018, proposal 61)
+  final VoidCallback onResumeHandoff; // new chat resuming from the newest Handoff (ADR 0028)
   final TextEditingController controller;
   final List<TextInputFormatter> inputFormatters;
   final VoidCallback onTapField; // taps on a paste chip open it (proposal 47)
@@ -2070,14 +2076,22 @@ class _Composer extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (mode != null)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: ModeChip(mode: mode!, onTap: onModeTap),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
+                if (mode != null) ModeChip(mode: mode!, onTap: onModeTap),
+                TextButton.icon(
+                  onPressed: onImprove,
+                  icon: const Icon(Icons.auto_fix_high_outlined, size: 18),
+                  label: const Text('Improve'),
                 ),
-              ),
+                TextButton.icon(
+                  onPressed: onResumeHandoff,
+                  icon: const Icon(Icons.open_in_new, size: 18),
+                  label: const Text('Resume handoff'),
+                ),
+              ]),
+            ),
             if (pending.isNotEmpty)
               SizedBox(
                 height: 72,
