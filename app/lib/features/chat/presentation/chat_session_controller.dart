@@ -355,8 +355,14 @@ class ChatSessionController extends ChangeNotifier with WidgetsBindingObserver {
           for (final m in (f['available'] as List? ?? const [])) ?SessionMode.fromWire(m),
         ];
       case 'dialog_closed':
-        // A mirrored CLI question got answered (here or on the PC): drop the card.
+        // A question got answered (here, on another device, or on the PC in
+        // Mirror mode) or timed out: drop the card.
         if (pendingDialog?.dialogId == f['dialogId']) pendingDialog = null;
+        if (f['dialogId'] is String) unawaited(PushService.cancelPrompt(f['dialogId'] as String));
+      case 'permission_closed':
+        // Another device answered (or it timed out): drop the approval card.
+        if (pendingPermission?.toolUseID == f['toolUseID']) pendingPermission = null;
+        if (f['toolUseID'] is String) unawaited(PushService.cancelPrompt(f['toolUseID'] as String));
       case 'result':
         _streaming = null;
         _thinking = null;

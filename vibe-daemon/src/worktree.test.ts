@@ -314,7 +314,7 @@ test("WS: a worktree deleted by hand refuses to attach — never falls back to t
   const wtPath = (db.prepare("SELECT worktree_path FROM sessions WHERE id=?").get(j.id) as any).worktree_path;
   execFileSync("rm", ["-rf", wtPath]);
   const { ws, frames, closed } = connect(j.id);
-  assert.equal(await closed, 4410);
+  assert.equal(await closed, 4404);
   assert.ok(frames.some((f) => f.t === "error" && /worktree/i.test(f.message)));
   assert.equal(seen.cwd, undefined, "no engine was started");
   assert.equal((db.prepare("SELECT status FROM sessions WHERE id=?").get(j.id) as any).status, "stale");

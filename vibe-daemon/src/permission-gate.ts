@@ -86,6 +86,7 @@ export class PermissionGate {
       setTimeout(() => {
         if (this.pending.delete(toolUseID)) {
           logEvent(this.db, "permission.timeout", null, `${this.sessionId}:${toolName}`);
+          this.send({ t: "permission_closed", toolUseID }); // other devices drop the card
           resolve({ behavior: "deny", message: "Approval timed out" });
         }
       }, this.timeoutMs);
@@ -101,6 +102,7 @@ export class PermissionGate {
     const p = this.pending.get(toolUseID);
     if (!p) return false;
     this.pending.delete(toolUseID);
+    this.send({ t: "permission_closed", toolUseID }); // first answer wins; other devices drop the card
     logEvent(
       this.db,
       allow ? "permission.allow" : "permission.deny",
@@ -123,6 +125,7 @@ export class PermissionGate {
     for (const [toolUseID, p] of this.pending) {
       this.pending.delete(toolUseID);
       logEvent(this.db, "permission.auto_allow", null, `${this.sessionId}:${p.req.toolName as string}`);
+      this.send({ t: "permission_closed", toolUseID });
       p.resolve({ behavior: "allow", updatedInput: p.req.input as Record<string, unknown> });
     }
   }
@@ -139,7 +142,10 @@ export class PermissionGate {
 
   // Session ending: resolve everything as deny so no turn hangs.
   resolveAllDenied(): void {
-    for (const [, p] of this.pending) p.resolve({ behavior: "deny", message: "session ended" });
+    for (const [toolUseID, p] of this.pending) {
+      this.send({ t: "permission_closed", toolUseID });
+      p.resolve({ behavior: "deny", message: "session ended" });
+    }
     this.pending.clear();
   }
 }

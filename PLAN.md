@@ -139,6 +139,11 @@ an always-on Max-plan usage meter with a "use it before it resets" push
 ([ADR 0020](docs/decisions/0020-plan-usage-sidebar.md)).
 Status and next steps are in `docs/milestones.md` → "Desktop client".
 
+**Multi-device chat ([proposal 58](docs/proposals/58-multi-device-chat.md)).**
+- [x] Chat sessions fan out to every attached client; first permission/dialog answer wins
+- [x] `stop()` closes attached sockets (1012 retry, 4404/4410 stop)
+- [ ] On-device check: phone + Windows app on one chat
+
 ## 7. Open questions / risks
 
 - **Agent SDK auth:** confirm SDK uses your existing `claude` CLI login/credentials

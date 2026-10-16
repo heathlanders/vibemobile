@@ -29,7 +29,10 @@ function fakeWs() {
     on() {},
     ping() {},
     terminate() {},
-    close() {},
+    closed: [] as Array<[number, string]>,
+    close(code: number, reason: string) {
+      this.closed.push([code, reason]);
+    },
   } as any;
 }
 
@@ -167,19 +170,57 @@ test("transcript persists and replays as history on a fresh attach", async () =>
   assert.ok(roles.includes("user") && roles.includes("assistant") && roles.includes("result"));
 });
 
-test("a superseded socket closing does not detach the newer one", async () => {
+test("every attached socket gets the turn's frames; detach removes only that socket", async () => {
   const db = seedDb();
   const s = new ClaudeSession(db, "s1", "/tmp", fakeQuery);
   const ws1 = fakeWs();
   const ws2 = fakeWs();
   s.attach(ws1);
-  s.attach(ws2); // latest attach wins
-  s.detach(ws1); // the old view closes afterwards
+  s.attach(ws2);
   s.start();
   s.pushUser("hi");
-  await waitFor(() => ws2.frames.some((f: any) => f.t === "result"));
+  await waitFor(() => ws1.frames.some((f: any) => f.t === "result") && ws2.frames.some((f: any) => f.t === "result"));
+  s.detach(ws1);
+  assert.equal(s.isReapable(0), false, "one socket still attached");
+  const n = ws1.frames.length;
+  s.announceRewound("m1", []);
+  assert.ok(ws2.frames.some((f: any) => f.t === "rewound"));
+  assert.equal(ws1.frames.length, n, "the detached socket receives nothing more");
   s.detach(ws2);
-  assert.equal(s.isReapable(0), true, "the live socket closing does detach");
+  assert.equal(s.isReapable(0), true, "reapable once both detach");
+});
+
+test("permission answered via one socket closes the card on both; a second answer is refused", async () => {
+  const db = seedDb();
+  const s = new ClaudeSession(db, "s1", "/tmp", fakeQuery);
+  const ws1 = fakeWs();
+  const ws2 = fakeWs();
+  s.setAutoAllow(false);
+  s.attach(ws1);
+  s.attach(ws2);
+  s.start();
+  s.pushUser("hi");
+  await waitFor(() => ws2.frames.some((f: any) => f.t === "permission_request"));
+  assert.equal(s.onPermission("tu1", true), true);
+  assert.equal(s.onPermission("tu1", false), false, "first answer wins");
+  for (const ws of [ws1, ws2]) assert.ok(ws.frames.some((f: any) => f.t === "permission_closed" && f.toolUseID === "tu1"));
+});
+
+test("stop() closes every attached socket with the given code (default 1012)", () => {
+  const db = seedDb();
+  const s = new ClaudeSession(db, "s1", "/tmp", fakeQuery);
+  const ws1 = fakeWs();
+  const ws2 = fakeWs();
+  s.attach(ws1);
+  s.attach(ws2);
+  s.stop();
+  assert.equal(ws1.closed[0][0], 1012);
+  assert.equal(ws2.closed[0][0], 1012);
+  const ws3 = fakeWs();
+  const s2 = new ClaudeSession(db, "s1", "/tmp", fakeQuery);
+  s2.attach(ws3);
+  s2.stop(4404);
+  assert.equal(ws3.closed[0][0], 4404);
 });
 
 test("idle reaper evicts a detached, quiet session but never an attached one", async () => {

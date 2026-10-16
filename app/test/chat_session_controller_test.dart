@@ -56,6 +56,15 @@ void main() {
     expect(c.pendingPermission, isNull);
   });
 
+  test('permission_closed withdraws the matching approval card only (proposal 58)', () {
+    final c = controller();
+    c.applyFrame({'t': 'permission_request', 'toolUseID': 'tu1', 'toolName': 'Bash'});
+    c.applyFrame({'t': 'permission_closed', 'toolUseID': 'other'});
+    expect(c.pendingPermission, isNotNull);
+    c.applyFrame({'t': 'permission_closed', 'toolUseID': 'tu1'});
+    expect(c.pendingPermission, isNull);
+  });
+
   test('permission_request carries an optional diffPreview (proposal 02)', () {
     final c = controller();
     c.applyFrame({

@@ -351,7 +351,7 @@ export function registerSessionRoutes(app: FastifyInstance, db: DB, tmux: Tmux, 
   app.delete("/sessions/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
     await tmux.killSession(id); // no-op if it wasn't a terminal
-    registry.get(id)?.stop(); // stop the Agent SDK loop if it was a live claude session
+    registry.get(id)?.stop(4404, "session closed"); // stop the Agent SDK loop if it was a live claude session
     registry.delete(id);
     // Its transcript .jsonl outlives the row, so remember it — else discovery
     // re-lists it on the next GET /sessions (discover.ts).

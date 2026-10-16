@@ -86,7 +86,8 @@ type Pending = { resolve: (r: unknown, deviceId?: string | null) => void; req: R
 const sdkMode = (m: SessionMode): "default" | "plan" => (m === "plan" ? "plan" : "default");
 
 export class ClaudeSession implements EngineSession {
-  private ws: WebSocket | null = null;
+  // Every attached client (phone + desktop) gets every frame; first answer wins.
+  private readonly sockets = new Set<WebSocket>();
   private queue: any[] = [];
   private wake: (() => void) | null = null;
   private inputClosed = false;
@@ -145,7 +146,7 @@ export class ClaudeSession implements EngineSession {
       this.permissionTimeoutMs,
       this.cwd,
       () => {
-        if (!this.ws) this.notify("permission");
+        if (this.sockets.size === 0) this.notify("permission");
       },
       // Auto mode never touches files outside the project folders silently (security.md #7).
       (tool, input) => fileToolInScope(tool, input, this.cwd, autoScopeDirs(this.db, this.cwd)),
@@ -353,7 +354,9 @@ export class ClaudeSession implements EngineSession {
     this.send({ t: "rewound", messageId, filesChanged: files, ts: nowIso() });
   }
 
-  stop(): void {
+  // `code` is what attached clients see: 1012 → they reconnect and resume via
+  // getOrStart; 4404 → they stop (session deleted or worktree missing).
+  stop(code = 1012, reason = "session stopped"): void {
     this.stopped = true;
     this.inputClosed = true;
     this.wake?.();
@@ -362,12 +365,14 @@ export class ClaudeSession implements EngineSession {
     for (const [, p] of this.pendingDialogs) p.resolve({ behavior: "cancelled" });
     this.pendingDialogs.clear();
     this.status.end();
+    for (const ws of this.sockets) ws.close(code, reason);
+    this.sockets.clear();
   }
 
   // ---- client attach / detach ---------------------------------------------
 
   attach(ws: WebSocket): void {
-    this.ws = ws;
+    this.sockets.add(ws);
     const all = this.db
       .prepare("SELECT id, role, content, tool_json, ts FROM messages WHERE session_id = ? ORDER BY ts")
       .all(this.id) as any[];
@@ -407,14 +412,14 @@ export class ClaudeSession implements EngineSession {
   }
 
   detach(ws: WebSocket): void {
-    if (this.ws === ws) this.ws = null; // a stale socket closing must not orphan the live one
+    this.sockets.delete(ws);
   }
 
   // Detached and quiet past `idleMs` → safe to evict (frees the SDK subprocess;
   // reattach resumes via claude_session_id). handle() touches lastActivityMs on
   // every SDK message even while detached, so an in-progress turn is never reaped.
   isReapable(idleMs: number): boolean {
-    return this.ws === null && !this.stopped && Date.now() - this.lastActivityMs > idleMs;
+    return this.sockets.size === 0 && !this.stopped && Date.now() - this.lastActivityMs > idleMs;
   }
 
   // ---- input (multi-turn) --------------------------------------------------
@@ -425,6 +430,7 @@ export class ClaudeSession implements EngineSession {
   // the SDK content becomes an array of text + image blocks (spike-image.ts: the
   // SDK forwards {type:'image', source:{base64}} in the input stream).
   pushUser(text: string, attachmentIds: string[] = []): void {
+    if (this.stopped) return; // a frame still in flight as stop() closed the socket
     this.lastActivityMs = Date.now();
     const imgs = attachmentIds
       .map(
@@ -583,7 +589,7 @@ export class ClaudeSession implements EngineSession {
       };
       this.pendingDialogs.set(dialogId, { resolve: done, req });
       this.send(req);
-      if (!this.ws) this.notify("question");
+      if (this.sockets.size === 0) this.notify("question");
     });
   };
 
@@ -616,7 +622,7 @@ export class ClaudeSession implements EngineSession {
       };
       this.pendingDialogs.set(dialogId, { resolve: done, req });
       this.send(req);
-      if (!this.ws) this.notify("question");
+      if (this.sockets.size === 0) this.notify("question");
     });
   };
 
@@ -640,7 +646,7 @@ export class ClaudeSession implements EngineSession {
   private onUserDialog = (
     request: { dialogKind: string; payload: Record<string, unknown>; toolUseID?: string },
   ): Promise<unknown> => {
-    if (!this.ws) return Promise.resolve({ behavior: "cancelled" });
+    if (this.sockets.size === 0) return Promise.resolve({ behavior: "cancelled" });
     const dialogId = randomUUID();
     const req = {
       t: "user_dialog",
@@ -655,6 +661,7 @@ export class ClaudeSession implements EngineSession {
       setTimeout(() => {
         if (this.pendingDialogs.delete(dialogId)) {
           logEvent(this.db, "dialog.timeout", null, `${this.id}:${request.dialogKind}`);
+          this.send({ t: "dialog_closed", dialogId });
           resolve({ behavior: "cancelled" });
         }
       }, this.permissionTimeoutMs);
@@ -665,6 +672,7 @@ export class ClaudeSession implements EngineSession {
     const p = this.pendingDialogs.get(dialogId);
     if (!p) return false;
     this.pendingDialogs.delete(dialogId);
+    this.send({ t: "dialog_closed", dialogId }); // first answer wins; other devices drop the card
     logEvent(this.db, completed ? "dialog.completed" : "dialog.cancelled", deviceId, `${this.id}:${p.req.dialogKind as string}`);
     p.resolve(completed ? { behavior: "completed", result } : { behavior: "cancelled" }, deviceId);
     this.status.resume();
@@ -794,7 +802,7 @@ export class ClaudeSession implements EngineSession {
         }
         this.send({ t: "result", subtype: msg.subtype });
         this.status.end();
-        if (!this.ws) this.notify("done");
+        if (this.sockets.size === 0) this.notify("done");
         // Refresh the Max-plan meters after a turn (cached; ~1-min TTL).
         this.emitUsage();
         this.emitContext();
@@ -846,7 +854,7 @@ export class ClaudeSession implements EngineSession {
   private send(frame: Record<string, unknown>): void {
     // An approval / question card blocks the turn on the user (status line).
     if (frame.t === "permission_request" || frame.t === "user_dialog") this.status.wait();
-    if (this.ws) this.sendTo(this.ws, frame);
+    for (const ws of this.sockets) this.sendTo(ws, frame);
   }
 
   // Fetch (cached) Max-plan usage and push it to the client as a `usage` frame.
