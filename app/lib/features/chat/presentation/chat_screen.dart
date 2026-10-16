@@ -56,6 +56,7 @@ import 'context_sheet.dart';
 import 'branch_sheet.dart';
 import 'ci_sheet.dart';
 import 'effort_sheet.dart';
+import '../../editor/presentation/editor_opener.dart';
 import '../../files/data/project_files_api.dart';
 import 'file_browser_screen.dart';
 import 'markdown_text.dart';
@@ -628,8 +629,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     _controller.setEffort(picked.isEmpty ? null : picked);
   }
 
+  /// "Browse files…": a pushed browser; on the desktop workspace a tapped file opens as a tab.
+  void _browseFiles() {
+    final tab = EditorOpener.maybeOf(context);
+    final nav = Navigator.of(context);
+    nav.push(sharedAxisRoute(FileBrowserScreen(
+      api: ProjectFilesApi.session(dioFor(widget.creds), widget.session.id),
+      title: 'Files',
+      onOpenFile: tab == null
+          ? null
+          : (api, path) {
+              nav.pop();
+              tab(api, path);
+            },
+    )));
+  }
+
   // Switch model in place — same conversation, new model from the next turn on.
   // Claude models only; moving to another provider is what Hand off is for.
+
   Future<void> _switchModel() async {
     final choice = await chooseModel(context, SessionApi(dioFor(widget.creds)), title: 'Switch model to');
     final id = choice?.id;
@@ -1110,7 +1128,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
               if (v == 'effort') _pickEffort();
               if (v == 'mcp') showMcpSheet(context, _controller);
               if (v == 'ci') showCiSheet(context, creds: widget.creds, sessionId: widget.session.id);
-              if (v == 'files') Navigator.of(context).push(sharedAxisRoute(FileBrowserScreen(api: ProjectFilesApi.session(dioFor(widget.creds), widget.session.id), title: 'Files')));
+              if (v == 'files') _browseFiles();
               if (v == 'improve') _improveDraft();
               if (v == 'tokens') showSessionSpendSheet(context, widget.creds, widget.session.id);
             },

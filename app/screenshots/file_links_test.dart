@@ -1,15 +1,23 @@
 // Proposal 48: file paths in replies open in an in-app viewer at the right line.
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vibemobile/core/theme.dart';
-import 'package:vibemobile/features/chat/data/browse_api.dart';
 import 'package:vibemobile/features/chat/presentation/chat_controller_pool.dart';
 import 'package:vibemobile/features/chat/presentation/chat_screen.dart';
-import 'package:vibemobile/features/chat/presentation/file_browser_screen.dart';
+import 'package:vibemobile/features/editor/presentation/code_editor_screen.dart';
+import 'package:vibemobile/features/files/data/project_files_api.dart';
 
 import 'fakes.dart';
 import 'harness.dart';
+
+class _SourceApi extends ProjectFilesApi {
+  _SourceApi() : super(Dio(), 'sessions/s1');
+
+  @override
+  Future<TextDoc> readDoc(String path) async => TextDoc(path: path, content: _source, sha: 'sha', mtime: null, size: _source.length);
+}
 
 const _source = '''import { createHash } from 'node:crypto';
 
@@ -63,13 +71,11 @@ void main() {
       await settle(tester);
       await shot(tester, 'file-links', size, 1, 'links-in-reply');
 
-      await tester.pumpWidget(MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
-        home: FileViewerScreen(
-          path: 'src/auth/login.ts',
-          line: 19,
-          load: () async => BrowseFile(path: 'src/auth/login.ts', size: _source.length, content: _source),
+      await tester.pumpWidget(ProviderScope(
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light,
+          home: CodeEditorScreen(api: _SourceApi(), path: 'src/auth/login.ts', line: 19),
         ),
       ));
       await settle(tester);

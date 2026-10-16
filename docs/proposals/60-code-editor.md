@@ -35,6 +35,15 @@ No multi-cursor.
 - **Desktop:** files open as a tab kind in `workspace/presentation/workspace_screen.dart` (beside
   chat tabs, Ctrl+W closes, dirty prompt). Phone: pushed route.
 
+**Built (Phase 1) — where it differs from the spec above:**
+- Dirty means "edited since open or last save": undoing back to the original text still shows the dot.
+- Shortcuts exist only off Android / iOS (re_editor wires none there); a phone gets the toolbar and the
+  long-press menu instead. Ctrl+Y / Ctrl+H are added over re_editor's defaults; the find bar also takes Ctrl+H / Ctrl+F / Esc.
+- Desktop file tabs persist as `file:<scope>|<path>` beside the plain session ids in `WorkspacePrefs`;
+  opening a file that already has a tab just focuses it (a new line number is not applied).
+- The old `readText` / `FileViewerScreen` are gone; `BrowseApi` is no longer used by the app (tests only).
+- The perf check (2 MiB / 50k lines) is still to do on the phone and on Windows.
+
 ## Phase 2 — format + lint (Prettier, ESLint → Error Lens)
 - Daemon `POST …/files/format {path, content}` → `{content}`; `POST …/files/lint {path, content}`
   → `{diagnostics:[{line, col, endLine?, endCol?, severity, message, rule?, source}]}`.

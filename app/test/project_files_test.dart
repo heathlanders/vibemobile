@@ -47,10 +47,35 @@ void main() {
       expect(seen2.single.queryParameters, isEmpty);
     });
 
-    test('readText maps the body', () async {
+    test('readDoc maps the body, sha and mtime included', () async {
       final seen = <RequestOptions>[];
-      final f = await ProjectFilesApi.session(stub(200, {'path': 'x.md', 'content': 'hi', 'size': 2, 'sha': 'abc'}, seen), 's1').readText('x.md');
-      expect([f.content, f.size, f.truncated, seen.single.path], ['hi', 2, false, '/sessions/s1/files/text']);
+      final f = await ProjectFilesApi.session(stub(200, {'path': 'x.md', 'content': 'hi', 'size': 2, 'sha': 'abc', 'mtime': '2026-10-16T10:00:00.000Z'}, seen), 's1').readDoc('x.md');
+      expect([f.content, f.size, f.sha, f.mtime, seen.single.path], ['hi', 2, 'abc', '2026-10-16T10:00:00.000Z', '/sessions/s1/files/text']);
+    });
+
+    test('saveText PUTs baseSha, or create:true for a new file', () async {
+      final seen = <RequestOptions>[];
+      final r = await ProjectFilesApi.session(stub(200, {'path': 'x.md', 'sha': 'new', 'mtime': 'm', 'size': 5}, seen), 's1').saveText('x.md', 'hello', baseSha: 'old');
+      expect([r.sha, r.mtime, r.size], ['new', 'm', 5]);
+      expect([seen.single.method, seen.single.path], ['PUT', '/sessions/s1/files/text']);
+      expect(seen.single.data, {'path': 'x.md', 'content': 'hello', 'baseSha': 'old'});
+      final seen2 = <RequestOptions>[];
+      await ProjectFilesApi.project(stub(200, {'path': 'n.md', 'sha': 's', 'size': 1}, seen2), 'p1').saveText('n.md', 'x', create: true);
+      expect(seen2.single.path, '/projects/p1/files/text');
+      expect(seen2.single.data, {'path': 'n.md', 'content': 'x', 'create': true});
+    });
+
+    test('a 409 save carries the server\'s current sha, whether returned or thrown', () async {
+      for (final thrown in [false, true]) {
+        await expectLater(
+          ProjectFilesApi.session(stub(409, {'error': 'changed since you opened it', 'sha': 'cur'}, [], throwIt: thrown), 's').saveText('a', 'b', baseSha: 'old'),
+          throwsA(isA<StaleFileError>().having((e) => e.sha, 'sha', 'cur').having((e) => e.status, 'status', 409)),
+        );
+      }
+      await expectLater(
+        ProjectFilesApi.session(stub(413, {'error': 'too big'}, []), 's').saveText('a', 'b', baseSha: 'x'),
+        throwsA(isA<BrowseError>().having((e) => e is StaleFileError, 'stale', false).having((e) => e.status, 'status', 413)),
+      );
     });
 
     test('upload PUTs the raw route with overwrite and octet-stream headers', () async {
@@ -75,7 +100,7 @@ void main() {
         ProjectFilesApi.session(stub(507, {'error': 'The server disk is almost full'}, [], throwIt: true), 's').upload('', src('a')),
         throwsA(isA<BrowseError>().having((e) => e.status, 's', 507).having((e) => e.message, 'm', contains('disk'))),
       );
-      await expectLater(ProjectFilesApi.session(stub(403, {'error': 'secret'}, []), 's').readText('.env'), throwsA(isA<BrowseError>().having((e) => e.status, 's', 403)));
+      await expectLater(ProjectFilesApi.session(stub(403, {'error': 'secret'}, []), 's').readDoc('.env'), throwsA(isA<BrowseError>().having((e) => e.status, 's', 403)));
     });
 
     test('download streams to the destination file', () async {
