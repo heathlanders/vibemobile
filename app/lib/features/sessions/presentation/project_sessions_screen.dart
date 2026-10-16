@@ -8,6 +8,7 @@ import '../../../core/token_store.dart';
 import '../../../core/widgets.dart';
 import '../../chat/presentation/chat_screen.dart';
 import '../../notes/presentation/notes_panel.dart';
+import '../../chat/presentation/file_browser_screen.dart';
 import '../../projects/data/git_api.dart';
 import '../../prompts/data/prompt_api.dart';
 import '../../prompts/domain/prompt.dart';
@@ -212,6 +213,11 @@ class _ProjectSessionsScreenState extends State<ProjectSessionsScreen> {
             tooltip: 'Notes',
             icon: const Icon(Icons.sticky_note_2_outlined),
             onPressed: () => showProjectNotes(context, widget.creds, widget.project),
+          ),
+          IconButton(
+            tooltip: 'Files',
+            icon: const Icon(Icons.folder_outlined),
+            onPressed: () => openProjectFiles(context, widget.creds, widget.project),
           ),
           IconButton(
             tooltip: 'Start from template',

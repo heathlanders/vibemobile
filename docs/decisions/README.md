@@ -34,5 +34,6 @@ Status: `Accepted` until superseded.
 | 0027 | [Scheduled prompts (unattended runs)](0027-scheduled-prompts.md) | Accepted |
 | 0028 | [One work-management vocabulary (Roadmap, Proposal, Decision, Spike, Task list, Handoff, Inbox)](0028-work-management-standard.md) | Accepted |
 | 0029 | [Pair a new device from an already-paired one](0029-pair-from-a-paired-device.md) | Accepted |
+| 0030 | [Project file writes and transfer](0030-project-file-writes.md) | Accepted |
 
 New decision? Copy the shape of an existing ADR, bump the number, add a row.

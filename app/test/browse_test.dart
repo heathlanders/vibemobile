@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vibemobile/features/chat/data/browse_api.dart';
 import 'package:vibemobile/features/chat/presentation/file_browser_screen.dart';
+import 'package:vibemobile/features/files/data/project_files_api.dart';
 
 Map<String, dynamic> entry(String name, String type, {int? size, bool readable = true}) => {'name': name, 'type': type, 'size': ?size, 'readable': readable};
 
-class FakeApi extends BrowseApi {
-  FakeApi(this.tree) : super(Dio());
+class FakeApi extends ProjectFilesApi {
+  FakeApi(this.tree) : super(Dio(), 'sessions/s1');
 
   /// path → listing JSON (null = error 404)
   final Map<String, List<Map<String, dynamic>>> tree;
@@ -16,7 +17,7 @@ class FakeApi extends BrowseApi {
   final read_ = <String>[];
 
   @override
-  Future<BrowseListing> list(String sessionId, String path) async {
+  Future<BrowseListing> list(String path) async {
     listed.add(path);
     final e = tree[path];
     if (e == null) throw BrowseError(404, 'not found');
@@ -24,7 +25,7 @@ class FakeApi extends BrowseApi {
   }
 
   @override
-  Future<BrowseFile> read(String sessionId, String path) async {
+  Future<BrowseFile> readText(String path) async {
     read_.add(path);
     final f = files[path];
     if (f is BrowseError) throw f;
@@ -93,7 +94,7 @@ void main() {
 
     Future<FakeApi> pump(WidgetTester t, [FakeApi? api]) async {
       final a = api ?? tree();
-      await t.pumpWidget(MaterialApp(home: FileBrowserScreen(sessionId: 's1', api: a)));
+      await t.pumpWidget(MaterialApp(home: FileBrowserScreen(title: 'Files', api: a)));
       await t.pumpAndSettle();
       return a;
     }
@@ -172,7 +173,7 @@ void main() {
     });
 
     testWidgets('a failed listing shows the error, not a crash', (t) async {
-      await t.pumpWidget(MaterialApp(home: FileBrowserScreen(sessionId: 's1', api: FakeApi({}))));
+      await t.pumpWidget(MaterialApp(home: FileBrowserScreen(title: 'Files', api: FakeApi({}))));
       await t.pumpAndSettle();
       expect(find.textContaining('not found'), findsOneWidget);
     });

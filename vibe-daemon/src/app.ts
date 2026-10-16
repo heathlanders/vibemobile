@@ -29,6 +29,7 @@ import { registerForkRoute } from "./fork.js";
 import { registerScheduleRoutes } from "./schedule.js";
 import { registerCiRoutes } from "./ci.js";
 import { registerBrowseRoutes } from "./browse.js";
+import { registerProjectFilesRoutes } from "./project-files.js";
 import { getOrStart } from "./session-ws.js";
 import { registerSpendRoutes } from "./spend.js";
 import { registerSystemRoutes } from "./system.js";
@@ -208,6 +209,7 @@ export async function buildApp(
   registerProjectCreateRoute(app, db); // POST /projects — new dir + scaffold + git (proposal 17)
   registerGitRoutes(app, db); // GET /projects/:id/git-status — read-only (ADR 0011)
   registerBrowseRoutes(app, db); // read-only file browser — /sessions/:id/browse[/file] (proposal 46)
+  registerProjectFilesRoutes(app, db); // project files: list/text save/download/upload — /projects|sessions/:id/files… (ADR 0030)
   registerCiRoutes(app, db); // GET /projects|sessions/:id/ci — read-only PR + CI status (proposal 45)
   registerGitWriteRoutes(app, db); // stage / commit / branch, no push (ADR 0024)
   registerSpendRoutes(app, db); // GET /spend — token/cost ledger aggregates (ADR 0017)

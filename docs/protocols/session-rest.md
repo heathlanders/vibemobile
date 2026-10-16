@@ -394,6 +394,45 @@ the root.
   the project (**identical whether or not the target exists**), `.git`, or a secret-looking file ·
   `404` not found / session unknown · `415` binary. Successful reads are audited `file.browse`.
 
+## Project files
+
+[ADR 0030](../decisions/0030-project-file-writes.md), [proposal 59](../proposals/59-project-files-transfer.md),
+`security.md` #33. Every route exists under **both** `/projects/:id/files…` (the project path) and
+`/sessions/:id/files…` (the session's worktree, else the project path; any session kind). Bearer-gated.
+`path` is relative to that root; same confinement as the [file browser](#file-browser) (`403` outside the
+project, identical whether or not the target exists; `.git` and secret-looking files refused for read,
+download and write). Error bodies are `{error}` with a short fixed sentence, never a path.
+
+- `GET …/files?path=` → folder listing, same shape as the browser. 90/min.
+- `GET …/files/text?path=` → `{path, content, sha, mtime, size}`; `sha` = SHA-256 hex of the bytes,
+  `mtime` ISO-8601. `413` over `VIBE_MAX_EDIT_BYTES` (never truncated), `415` binary (NUL in the first
+  8 KiB) or not valid UTF-8, `400` not a regular file. A UTF-8 BOM is kept in `content`. Audited `file.read`. 90/min.
+- `PUT …/files/text` JSON `{path, content, baseSha}` (save an existing file) or `{path, content, create:true}`
+  (new file); exactly one of the two. → `{path, sha, mtime, size}`. `409 {error, sha}` when the current bytes
+  don't hash to `baseSha` (`sha` is the current one); `409` when `create` and the name exists (a dangling
+  symlink counts as existing); `413` content over the edit cap (UTF-8 bytes); `404` missing file/folder
+  (folders are never created); `400` bad name (empty, `.`/`..`, `\`, control characters, over 255 bytes) or body; `403` `.git`
+  or secret-looking name. Audited `file.write`. 30/min.
+- `GET …/files/raw?path=` → the bytes, `Content-Type: application/octet-stream`, `Content-Length`,
+  `Content-Disposition: attachment; filename="<ascii fallback>"; filename*=UTF-8''<name>`,
+  `X-Content-Type-Options: nosniff`. `413` over `VIBE_MAX_DOWNLOAD_BYTES`. Audited `file.download`. 30/min.
+- `PUT …/files/raw?path=&overwrite=0|1` body `application/octet-stream`, streamed to disk (never buffered
+  whole) → `{path, sha, size}`. `409` target exists and `overwrite` isn't `1`; `404` folder missing;
+  `413` over `VIBE_MAX_UPLOAD_BYTES` (also when `Content-Length` says so up front; temp file removed,
+  audited `file.upload_reject`); `415` any other content type; `507` disk-guard refused (ADR 0025 message); `400` interrupted upload.
+  Audited `file.upload`. 30/min. These routes use their own content-type parser, separate from the
+  5 MiB image-attachment one.
+
+Writes are atomic (temp file `.<name>.vibe-<hex>.tmp` in the target's real folder, fsync, rename), keep
+the existing file's mode (new files 0644), and write through an in-root symlink to its real file. One
+write at a time per project. Audit detail is `<projects|sessions>:<id>:<bytes>:<path>` (path last; it may contain `:`).
+
+| Env var | Default | Meaning |
+| --- | --- | --- |
+| `VIBE_MAX_EDIT_BYTES` | 2 MiB | largest text file readable/savable through `files/text` |
+| `VIBE_MAX_DOWNLOAD_BYTES` | 200 MiB | largest `files/raw` download |
+| `VIBE_MAX_UPLOAD_BYTES` | 100 MiB | largest `files/raw` upload |
+
 ## Pull request & CI status
 
 `GET /sessions/:id/ci` and `GET /projects/:id/ci` ([proposal 45](../proposals/45-pr-ci-status.md),
