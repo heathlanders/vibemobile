@@ -105,10 +105,10 @@ export function registerSessionWs(
         // A worktree someone deleted by hand: say so, never silently run in the main tree.
         if (row.worktree_path && !existsSync(row.worktree_path)) {
           db.prepare("UPDATE sessions SET status = 'stale' WHERE id = ?").run(row.id);
-          registry.get(row.id)?.stop();
+          registry.get(row.id)?.stop(4404, "worktree missing");
           registry.delete(row.id);
           socket.send(JSON.stringify({ t: "error", message: "This session's worktree is missing on the server." }));
-          socket.close(4410, "worktree missing");
+          socket.close(4404, "worktree missing");
           return null;
         }
         // Resuming a non-live row (discovered / stale) makes it live — same cap

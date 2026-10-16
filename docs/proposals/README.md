@@ -67,5 +67,6 @@ its wire/schema impact so promotion to a protocol is mechanical.
 | 55 | [Mouse back/forward on desktop](55-mouse-back-forward.md) | client: rail history in `DesktopShell`, `Listener` in `MaterialApp.builder` (mouse 4/5) | shipped 2026-10-10 (v1.0.24), on-device check pending |
 | 56 | [Inbox batch: multi-image, panel fit, update prompt, scroll button, resolve_note](56-inbox-batch-oct11.md) | client: `pickMultiImage`, `PhonePanel` header icons, `UpdateDialog`, chat list `Stack`, Usage button on the phone bottom bar; daemon: `resolve_note` in `peer-tools.ts` | building 2026-10-11, on-device check pending |
 | 57 | [Message timestamps; build open Notes in a chat](57-timestamps-notes-to-chat.md) | client: `ChatMessage.at` + `fmtMessageTime` under bubbles; Notes sheet "Build in chat" → new session + `initialDraft` (`buildNotesPrompt`) | building 2026-10-11, on-device check pending |
+| 58 | [Multi-device chat](58-multi-device-chat.md) | daemon: `sockets` set in `ClaudeSession`/`NativeSession` (fan-out), `permission_closed`/`dialog_closed`, `stop(code)` closes sockets; client: `permission_closed` case | building 2026-10-16 |
 
 Status: `idea` → `accepted` → `building` → `shipped` (then move detail to the ADR/protocol).

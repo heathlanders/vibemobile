@@ -43,8 +43,9 @@ auto-allow / deny / timeout / audit rules below are identical regardless of engi
 | Event | Action |
 |-------|--------|
 | WS connect | row exists & `kind=claude`? no → close `4404`. Resuming a non-live row (discovered/stale) when live claude rows are already at `VIBE_MAX_CLAUDE` → `error` frame + close `4429` (client stops, no retry). yes → get-or-start the `ClaudeSession` from the in-daemon registry (resume the Agent SDK via `claude_session_id` if seen before), `attach(ws)` |
-| WS close | **detach** — the SDK query loop keeps running for the next reattach. Never stop here. Only the *current* socket detaches: a socket already superseded by a newer attach closing is a no-op (`detach(ws)`) |
-| `DELETE /sessions/:id` | `ClaudeSession.stop()` (abort the SDK) + remove rows |
+| WS close | **detach** — the SDK query loop keeps running for the next reattach. Never stop here. Several clients may be attached at once (phone + desktop) and **every attached client receives every frame**; `detach(ws)` removes only that socket |
+| `DELETE /sessions/:id` | `ClaudeSession.stop(4404)` (abort the SDK, close every attached socket) + remove rows |
+| `stop()` | Closes every attached socket so no client keeps talking to a dead session: `1012` (default — idle reaper, Mirror takeover; the client retries and resumes), `4404` (session deleted; client stops), `4404` also for a worktree missing (4410 would make the client retry) |
 
 Durability differs from tmux: the loop lives **in the daemon process**, not a
 detached server process. Reconnect within the daemon's lifetime re-attaches the
@@ -139,7 +140,8 @@ second tmux client next to the PC's (no `detach-client`); close = detach.
 | `title` | `title`, `auto?` (bool) | The session's display title changed server-side (auto-titler, [ADR 0009](../decisions/0009-auto-session-title.md)). Sent on attach when the row has a title, again when the first user turn is heuristically titled, and once more if the LLM refine succeeds. The client renders it over its cached `Session.label`; the same value is what `GET /sessions` returns |
 | `error` | `message` | SDK error (e.g. CLI login expired) — surfaced, not a hang |
 | `external` | `status` (`busy`/`idle`), `canReply` (bool) | **Mirror mode only** — a CLI on the server owns this session (see Lifecycle). Sent after `history` and on each status change |
-| `dialog_closed` | `dialogId` | **Mirror mode only** — the CLI recorded an answer to that question; drop its card |
+| `dialog_closed` | `dialogId` | That question was answered (first answer wins, from any device, or the CLI in Mirror mode) or timed out; drop its card |
+| `permission_closed` | `toolUseID` | That approval was answered by another device, timed out or was flushed by auto-allow; drop its card (proposal 58) |
 | `user_turn` | `text` | **Mirror mode only** — a user turn from the CLI's transcript. The client doesn't echo its own `user` locally while mirroring; it arrives here |
 
 ## Permissions (security.md — highest scrutiny)

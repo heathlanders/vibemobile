@@ -35,8 +35,7 @@ export interface EngineSession {
   // Attach a client socket: send history, replay pending approvals. Never starts.
   attach(ws: WebSocket): void;
   // Client socket closed — keep running for the next reattach. Never stops.
-  // No-op unless [ws] is still the attached socket: a newer attach already took
-  // over, and its socket must keep receiving frames.
+  // Removes only [ws]; other attached clients keep receiving frames.
   detach(ws: WebSocket): void;
   // A user turn (text + optional uploaded image ids).
   pushUser(text: string, imageIds?: string[]): void;
@@ -72,8 +71,9 @@ export interface EngineSession {
   busy?(): boolean;
   // Tell attached clients a rewind happened ({t:"rewound"}).
   announceRewound?(messageId: string, files: string[]): void;
-  // Tear the session down for good (DELETE /sessions/:id, or the reaper).
-  stop(): void;
+  // Tear the session down for good (DELETE /sessions/:id, or the reaper) and close
+  // every attached socket with [code] (default 1012: clients reconnect).
+  stop(code?: number, reason?: string): void;
   // Detached + idle past idleMs → the reaper may evict it.
   isReapable(idleMs: number): boolean;
 }

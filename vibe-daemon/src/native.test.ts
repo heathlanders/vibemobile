@@ -31,7 +31,7 @@ async function waitFor(fn: () => boolean, ms = 1500) {
 
 function fakeWs() {
   const frames: any[] = [];
-  return { OPEN: 1, readyState: 1, frames, send: (s: string) => frames.push(JSON.parse(s)), on() {}, ping() {}, terminate() {}, close() {} } as any;
+  return { OPEN: 1, readyState: 1, frames, send: (s: string) => frames.push(JSON.parse(s)), on() {}, ping() {}, terminate() {}, closed: [] as any[], close(code: number) { this.closed.push(code); } } as any;
 }
 
 function seedDb() {
@@ -81,6 +81,23 @@ test("chat: init + deltas + assistant + result stream out, and persist", async (
 
   const roles = (db.prepare("SELECT role FROM messages WHERE session_id='s1' ORDER BY ts").all() as any[]).map((r) => r.role);
   assert.deepEqual(roles, ["user", "assistant", "result"]);
+});
+
+test("two attached sockets both receive the turn; stop() closes both with 1012", async () => {
+  const db = seedDb();
+  const parts = [{ type: "finish", finishReason: "stop", totalUsage: { inputTokens: 1, outputTokens: 1 } }];
+  const s = new NativeSession(db, "s1", "/tmp", "openai:gpt-4o", fakeStream(parts));
+  const ws1 = fakeWs();
+  const ws2 = fakeWs();
+  s.attach(ws1);
+  s.attach(ws2);
+  s.pushUser("hi");
+  await waitFor(() => ws1.frames.some((f: any) => f.t === "result") && ws2.frames.some((f: any) => f.t === "result"));
+  s.detach(ws1);
+  assert.equal(s.isReapable(0), false);
+  s.stop();
+  assert.deepEqual(ws2.closed, [1012]);
+  assert.deepEqual(ws1.closed, []);
 });
 
 test("multi-turn resume: turn 2 sees the full prior transcript", async () => {

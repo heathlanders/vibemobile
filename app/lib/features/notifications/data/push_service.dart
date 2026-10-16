@@ -65,6 +65,15 @@ class PushService {
     }
   }
 
+  /// Another device answered (or it timed out): drop that prompt's notification.
+  static Future<void> cancelPrompt(String requestId) async {
+    try {
+      await _local.cancel(id: stableNoteId(requestId));
+    } catch (e) {
+      debugPrint('cancel prompt notify failed: $e');
+    }
+  }
+
   static void Function(String sessionId)? _onOpen;
   static String? _pendingOpen;
 

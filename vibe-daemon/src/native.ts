@@ -112,7 +112,8 @@ export function replayHistory(rows: HistoryRow[]): ModelMessage[] {
 }
 
 export class NativeSession implements EngineSession {
-  private ws: WebSocket | null = null;
+  // Every attached client gets every frame; first answer wins.
+  private readonly sockets = new Set<WebSocket>();
   private stopped = false;
   private abort = new AbortController();
   private readonly gate: PermissionGate;
@@ -142,7 +143,7 @@ export class NativeSession implements EngineSession {
     initialMode: SessionMode = DEFAULT_MODE,
   ) {
     this.gate = new PermissionGate(this.db, this.id, (f) => this.send(f), this.permissionTimeoutMs, this.cwd, () => {
-      if (!this.ws) this.notify("permission");
+      if (this.sockets.size === 0) this.notify("permission");
     });
     this.mode = initialMode === "ask" ? "ask" : "auto";
     this.gate.setAutoAllow(this.mode !== "ask");
@@ -166,17 +167,20 @@ export class NativeSession implements EngineSession {
     this.send({ t: "result", subtype: "interrupt", cost: 0 });
   }
 
-  stop(): void {
+  // See ClaudeSession.stop: `code` tells attached clients whether to reconnect.
+  stop(code = 1012, reason = "session stopped"): void {
     this.stopped = true;
     this.abort.abort();
     this.gate.resolveAllDenied();
     this.status.end();
+    for (const ws of this.sockets) ws.close(code, reason);
+    this.sockets.clear();
   }
 
   // ---- attach / detach -----------------------------------------------------
 
   attach(ws: WebSocket): void {
-    this.ws = ws;
+    this.sockets.add(ws);
     // History replay — identical shape to ClaudeSession.attach (image refs surfaced
     // so the client lazy-fetches thumbnails via GET /attachments/:id).
     const { rows, omitted } = capHistory(
@@ -208,16 +212,17 @@ export class NativeSession implements EngineSession {
   }
 
   detach(ws: WebSocket): void {
-    if (this.ws === ws) this.ws = null; // a stale socket closing must not orphan the live one
+    this.sockets.delete(ws);
   }
 
   isReapable(idleMs: number): boolean {
-    return this.ws === null && !this.stopped && Date.now() - this.lastActivityMs > idleMs;
+    return this.sockets.size === 0 && !this.stopped && Date.now() - this.lastActivityMs > idleMs;
   }
 
   // ---- input / turns -------------------------------------------------------
 
   pushUser(text: string, imageIds: string[] = []): void {
+    if (this.stopped) return; // a frame still in flight as stop() closed the socket
     this.lastActivityMs = Date.now();
     const imgs = imageIds
       .map(
@@ -377,7 +382,7 @@ export class NativeSession implements EngineSession {
       )?.total_cost_usd ?? cost;
     this.insert("result", null, JSON.stringify({ subtype: "success", cost }));
     this.send({ t: "result", subtype: "success", cost, sessionCost: total });
-    if (!this.ws) this.notify("done");
+    if (this.sockets.size === 0) this.notify("done");
     this.flushTitleRefine();
   }
 
@@ -462,7 +467,7 @@ export class NativeSession implements EngineSession {
   private send(frame: Record<string, unknown>): void {
     // An approval card blocks the turn on the user (status line).
     if (frame.t === "permission_request") this.status.wait();
-    if (this.ws) this.sendTo(this.ws, frame);
+    for (const ws of this.sockets) this.sendTo(ws, frame);
   }
 
   private sendTo(ws: WebSocket, frame: Record<string, unknown>): void {
