@@ -160,7 +160,7 @@ Status and next steps are in `docs/milestones.md` → "Desktop client".
 **Improve from chat ([proposal 63](docs/proposals/63-improve-from-chat.md)).**
 - [x] Chat Improve opens a sheet: type, or pick a sent message or a Claude reply; Improve / Go deeper
 - [x] Composer keyboard refocus after Improve; widget tests
-- [ ] On-device check: phone keyboard comes back; improve a Claude reply
+- [x] On-device check: phone keyboard comes back; improve a Claude reply (1.0.35)
 
 ## 7. Open questions / risks
 
