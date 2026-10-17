@@ -1,6 +1,6 @@
 # 62 — Code editor in its own window (desktop)
 
-**Status:** building (2026-10-16) · builds on [60](60-code-editor.md)
+**Status:** shipped (2026-10-17, v1.0.34; on-device check passed on Windows) · builds on [60](60-code-editor.md)
 
 ## Problem
 
