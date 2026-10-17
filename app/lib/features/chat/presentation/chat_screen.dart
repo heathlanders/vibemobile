@@ -610,15 +610,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   /// Rewrite the composer draft against the prompting checklist (ADR 0018);
   /// the user reviews before it replaces the draft. Nothing is sent.
   Future<void> _improveDraft() async {
-    if (_input.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Type a draft first')));
-      return;
+    final better = await improveFromChat(context, PromptApi(dioFor(widget.creds)),
+        draft: _pastes.expand(_input.text), messages: _controller.messages);
+    if (!mounted) return;
+    if (better != null) {
+      _input.text = better;
+      _input.selection = TextSelection.collapsed(offset: better.length);
     }
-    final better = await improvePromptFlow(context, PromptApi(dioFor(widget.creds)), _pastes.expand(_input.text));
-    if (better == null || !mounted) return;
-    _input.text = better;
-    _input.selection = TextSelection.collapsed(offset: better.length);
-    _inputFocus.requestFocus();
+    // Focus may have stayed on the composer under the sheet/dialogs, and a plain requestFocus
+    // on an already-focused node doesn't reopen the Android keyboard: drop it, then take it back.
+    _inputFocus.unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _inputFocus.requestFocus();
+    });
   }
 
   /// Continue this conversation on another model (ADR 0016): a new session

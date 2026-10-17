@@ -72,5 +72,6 @@ its wire/schema impact so promotion to a protocol is mechanical.
 | 60 | [Built-in code editor](60-code-editor.md) | client: `features/editor` on re_editor (highlight, find/replace, save, preview, desktop tab); daemon: format/lint exec, git head/blame | accepted 2026-10-16 |
 | 61 | [Rule packs + Go deeper](61-rule-packs-and-go-deeper.md) | daemon: `prompts.always_apply`, `rulesForPrompt(db, projectId)` appends flagged prompts, `prompt-improve.ts` deeper mode; client: Apply-to-every-session switch, Improve/Go deeper picker, rule names in context sheet | building 2026-10-16 |
 | 62 | [Code editor in its own window](62-editor-window.md) | client (desktop): second process (`--editor`), file inbox + lock, own tab strip, updater quits it | shipped 2026-10-17 (1.0.34) |
+| 63 | [Improve: type, or pick a chat message](63-improve-from-chat.md) | client: chat Improve opens a sheet (text box + recent user/assistant messages, Improve / Go deeper); composer keyboard refocus fix | building 2026-10-17 |
 
 Status: `idea` → `accepted` → `building` → `shipped` (then move detail to the ADR/protocol).

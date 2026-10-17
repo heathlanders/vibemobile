@@ -157,6 +157,11 @@ Status and next steps are in `docs/milestones.md` → "Desktop client".
 - [ ] Phase 3: git change gutter, blame hint, rainbow brackets, indent guides
 - [ ] On-device check on phone and Windows per proposal 60
 
+**Improve from chat ([proposal 63](docs/proposals/63-improve-from-chat.md)).**
+- [x] Chat Improve opens a sheet: type, or pick a sent message or a Claude reply; Improve / Go deeper
+- [x] Composer keyboard refocus after Improve; widget tests
+- [ ] On-device check: phone keyboard comes back; improve a Claude reply
+
 ## 7. Open questions / risks
 
 - **Agent SDK auth:** confirm SDK uses your existing `claude` CLI login/credentials
