@@ -1,6 +1,6 @@
 # 63 — Improve: type, or pick a chat message
 
-**Status:** building (2026-10-17) · extends [ADR 0018](../decisions/0018-prompt-library-v2.md) and proposal [61](61-rule-packs-and-go-deeper.md)
+**Status:** shipped 2026-10-17 (1.0.35) · extends [ADR 0018](../decisions/0018-prompt-library-v2.md) and proposal [61](61-rule-packs-and-go-deeper.md)
 
 ## Problem
 
