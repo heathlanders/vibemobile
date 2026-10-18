@@ -1,6 +1,6 @@
 # 65 — Swarm tasks + file leases (S1 + S2)
 
-**Status:** building 2026-10-18 · steps S1 + S2 of proposal [64](64-swarm-and-prior-art-survey.md) · builds on [28](28-worktree-per-session.md) (worktrees), [30](30-session-peer-tools.md) (peer tools), notes (`notes.ts`)
+**Status:** built 2026-10-18 (1.0.36), on-box/on-device check pending · steps S1 + S2 of proposal [64](64-swarm-and-prior-art-survey.md) · builds on [28](28-worktree-per-session.md) (worktrees), [30](30-session-peer-tools.md) (peer tools), notes (`notes.ts`)
 
 ## Problem
 
