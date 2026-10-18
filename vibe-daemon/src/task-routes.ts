@@ -8,6 +8,7 @@ import type { DB } from "./db.js";
 import type { Tmux } from "./tmux.js";
 import { logEvent, type Device } from "./auth.js";
 import { createSession } from "./sessions.js";
+import { taskInQueue } from "./merge-queue.js";
 import {
   COLS, MAX_BODY_CHARS, MAX_DEPS, MAX_TITLE_CHARS, bindSession, broadcastTaskDone, getTask, normalizeScope, releaseTask,
   reserveTask, taskPrompt, toTask,
@@ -112,6 +113,7 @@ export function registerTaskRoutes(
     }
     let state = t.state;
     let sessionId = t.session_id;
+    if (b.state !== undefined && taskInQueue(db, id)) return reply.code(409).send({ error: "the task is in the merge queue: reject it there first" });
     if (b.state !== undefined) {
       if (b.state === "ready") {
         state = "ready";
@@ -134,6 +136,7 @@ export function registerTaskRoutes(
 
   app.delete("/tasks/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
+    if (taskInQueue(db, id)) return reply.code(409).send({ error: "the task is in the merge queue: reject it there first" });
     db.prepare("DELETE FROM tasks WHERE id = ?").run(id);
     logEvent(db, "task.delete", device(req), id);
     return reply.code(204).send(); // idempotent

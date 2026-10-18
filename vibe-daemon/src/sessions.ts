@@ -20,6 +20,7 @@ import { parseMode } from "./engine.js";
 import { isNativeProvider, providerFor } from "./gateway.js";
 import { createWorktree, removeWorktree, WorktreeError } from "./worktree.js";
 import { diskGuard } from "./settings.js";
+import { sessionInQueue } from "./merge-queue.js";
 
 const nowIso = () => new Date().toISOString();
 // Exported for discover.ts, which mints rows for externally-started sessions
@@ -133,8 +134,8 @@ export async function createSession(db: DB, tmux: Tmux, input: CreateSessionInpu
   const sessionModel = kind === "claude" && typeof model === "string" && model.trim() ? model.trim() : null;
   const sessionTitle = title ?? agent?.label ?? null;
   db.prepare(
-    "INSERT INTO sessions (id, project_id, kind, title, status, created_at, initial_prompt, model, mode, worktree_path, worktree_branch, base_ref) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-  ).run(id, project_id, kind, sessionTitle, "live", created_at, initial, sessionModel, mode ? parseMode(mode) : null, wt?.path ?? null, wt?.branch ?? null, wt?.baseRef ?? null);
+    "INSERT INTO sessions (id, project_id, kind, title, status, created_at, initial_prompt, model, mode, worktree_path, worktree_branch, base_ref, target_branch) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+  ).run(id, project_id, kind, sessionTitle, "live", created_at, initial, sessionModel, mode ? parseMode(mode) : null, wt?.path ?? null, wt?.branch ?? null, wt?.baseRef ?? null, wt?.targetBranch ?? null);
   logEvent(db, "session.create", deviceId, agent ? `${id} preset:${preset}` : id);
 
   return {
@@ -348,7 +349,7 @@ export function registerSessionRoutes(app: FastifyInstance, db: DB, tmux: Tmux, 
         worktree_branch: string | null;
         base_ref: string | null;
       }[]
-    ).filter((r) => !(r.claude_session_id && running.has(r.claude_session_id)));
+    ).filter((r) => !(r.claude_session_id && running.has(r.claude_session_id)) && !sessionInQueue(db, r.id));
     // Worktree rows: remove the checkout only if nothing would be lost (ADR 0022),
     // same rule as DELETE. A kept one stays on disk; the row still goes.
     const projectPath = (db.prepare("SELECT path FROM projects WHERE id = ?").get(project_id) as { path: string } | undefined)?.path;
@@ -378,6 +379,8 @@ export function registerSessionRoutes(app: FastifyInstance, db: DB, tmux: Tmux, 
   // Idempotent: deleting an already-gone session is 204, not 404 (session-rest.md).
   app.delete("/sessions/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
+    // Its work is mid-merge (ADR 0032 §7): reject the queue item first.
+    if (sessionInQueue(db, id)) return reply.code(409).send({ error: "the session is in the merge queue: reject it there first" });
     await tmux.killSession(id); // no-op if it wasn't a terminal
     registry.get(id)?.stop(4404, "session closed"); // stop the Agent SDK loop if it was a live claude session
     registry.delete(id);

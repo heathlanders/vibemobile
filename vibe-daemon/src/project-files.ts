@@ -8,13 +8,14 @@
 // names, and are serialised per project root. Error bodies are short fixed sentences, never paths.
 
 import { createHash, randomBytes } from "node:crypto";
-import { closeSync, fsyncSync, lstatSync, openSync, realpathSync, statSync } from "node:fs";
+import { closeSync, fsyncSync, lstatSync, openSync, statSync } from "node:fs";
 import { open, rename, unlink } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { DB } from "./db.js";
 import { logEvent, type Device } from "./auth.js";
 import { pathInRoots } from "./paths.js";
+import { withProjectLock } from "./project-lock.js";
 import { diskGuard } from "./settings.js";
 import { listDir, looksSecret, resolveInside, type BrowseError } from "./browse.js";
 
@@ -31,23 +32,6 @@ const uploadCap = () => cap("VIBE_MAX_UPLOAD_BYTES", 100 * MiB);
 
 const bad = (status: number, error: string): BrowseError => ({ status, error });
 const sha256 = (b: Buffer) => createHash("sha256").update(b).digest("hex");
-
-// One write at a time per project root (same shape as git-write.ts's `serial`).
-const locks = new Map<string, Promise<unknown>>();
-function serial<T>(key: string, fn: () => Promise<T>): Promise<T> {
-  const run = (locks.get(key) ?? Promise.resolve()).catch(() => {}).then(fn);
-  locks.set(key, run);
-  void run.finally(() => locks.get(key) === run && locks.delete(key)).catch(() => {});
-  return run;
-}
-// Lock on the real root, so a project and its session (or a symlinked project path) share one lock.
-const lockKey = (root: string) => {
-  try {
-    return realpathSync(root);
-  } catch {
-    return root;
-  }
-};
 
 type Located = { real: string | null; dir: string; name: string; rel: string; root: string; mode: number };
 
@@ -188,7 +172,7 @@ export function registerProjectFilesRoutes(app: FastifyInstance, db: DB): void {
     const bytes = Buffer.from(body.content, "utf8");
     if (bytes.length > editCap()) return { status: 413, body: { error: "too large" } };
     const path = body.path;
-    return serial(lockKey(root), async () => {
+    return withProjectLock(root, async () => {
       const loc = locate(root, path);
       if ("status" in loc) return { status: loc.status, body: { error: loc.error } };
       if (create && loc.real) return { status: 409, body: { error: "already exists" } };
@@ -413,7 +397,7 @@ export function registerProjectFilesRoutes(app: FastifyInstance, db: DB): void {
           return reply.header("Connection", "close").code(413).send({ error: "too large" });
         }
 
-        const out: Out = await serial(lockKey(s.root), async () => {
+        const out: Out = await withProjectLock(s.root, async () => {
           try {
             const now = locate(s.root, q.path);
             let target: string;

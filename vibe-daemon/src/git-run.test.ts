@@ -6,10 +6,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { gitRun, UnsafeGitConfigError, unsafeDriverKey } from "./git-run.js";
+import { assertGitLayout, gitRun, UnsafeGitConfigError, UnsafeGitLayoutError, unsafeDriverKey, unsafeLayoutKey } from "./git-run.js";
 import { gitStatus } from "./git.js";
 import { createWorktree, WorktreeError } from "./worktree.js";
 
@@ -171,4 +171,128 @@ test("unsafeDriverKey: flags driver commands and onbranch includes, passes harml
   assert.equal(unsafeDriverKey(list([["includeif.onbranch:main.path", "/x"]])), "includeif.onbranch:main.path");
   // A subsection may contain dots or odd case; the key name itself is lowercased by git.
   assert.equal(unsafeDriverKey(list([["filter.My.Drv.clean", "evil"]])), "filter.My.Drv.clean");
+});
+
+// ---- signing / editor knobs (ADR 0032 §4, added with the merge queue) -----------------
+
+const ID = ["-c", "user.name=t", "-c", "user.email=t@t"];
+
+// main has moved on since `feat` forked, so rebasing `feat` re-creates its commit.
+function divergent(name: string) {
+  const dir = join(ROOT, name);
+  mkdirSync(dir);
+  git(dir, "init", "-q", "-b", "main");
+  writeFileSync(join(dir, "a.txt"), "one\n");
+  git(dir, "add", "-A");
+  git(dir, ...ID, "commit", "-qm", "init");
+  git(dir, "checkout", "-qb", "feat");
+  writeFileSync(join(dir, "f.txt"), "feat\n");
+  git(dir, "add", "-A");
+  git(dir, ...ID, "commit", "-qm", "feat");
+  git(dir, "checkout", "-q", "main");
+  writeFileSync(join(dir, "m.txt"), "main\n");
+  git(dir, "add", "-A");
+  git(dir, ...ID, "commit", "-qm", "main");
+  const marker = join(dir, "PWNED");
+  const script = join(dir, "evil.sh");
+  writeFileSync(script, `#!/bin/sh\ntouch "${marker}"\nexit 1\n`, { mode: 0o755 });
+  return { dir, marker, script };
+}
+
+test("control: commit.gpgSign + gpg.program DOES run during a plain `git rebase`", () => {
+  const { dir, marker, script } = divergent("gpg-control");
+  git(dir, "config", "commit.gpgSign", "true");
+  git(dir, "config", "gpg.program", script);
+  try {
+    git(dir, ...ID, "rebase", "main", "feat");
+  } catch {
+    /* the script exits 1, so the rebase fails: only the marker matters */
+  }
+  assert.ok(existsSync(marker), "test premise broken: the signing plant did not fire");
+});
+
+test("gitRun rebase does not run a planted gpg.program", async () => {
+  const { dir, marker, script } = divergent("gpg-run");
+  git(dir, "config", "commit.gpgSign", "true");
+  git(dir, "config", "gpg.program", script);
+  await gitRun(dir, [...ID, "rebase", "main", "feat"], { timeout: 30_000 });
+  assert.equal(existsSync(marker), false);
+});
+
+// A commit carrying a `gpgsig` header, written straight into the object store.
+function signedCommit(dir: string): string {
+  const tree = git(dir, "rev-parse", "HEAD^{tree}").toString().trim();
+  const body = `tree ${tree}\nauthor t <t@t> 1700000000 +0000\ncommitter t <t@t> 1700000000 +0000\ngpgsig -----BEGIN PGP SIGNATURE-----\n \n abc\n -----END PGP SIGNATURE-----\n\nsigned\n`;
+  const file = join(ROOT, `commit-${Math.random().toString(36).slice(2)}.txt`);
+  writeFileSync(file, body);
+  return git(dir, "hash-object", "-t", "commit", "-w", file).toString().trim();
+}
+
+test("control: log.showSignature + gpg.program DOES run under plain `git log`", () => {
+  const { dir, marker, script } = divergent("showsig-control");
+  const sha = signedCommit(dir);
+  git(dir, "config", "log.showSignature", "true");
+  git(dir, "config", "gpg.program", script);
+  git(dir, "log", "-1", sha);
+  assert.ok(existsSync(marker), "test premise broken: the showSignature plant did not fire");
+});
+
+test("gitRun log does not run a planted gpg.program", async () => {
+  const { dir, marker, script } = divergent("showsig-run");
+  const sha = signedCommit(dir);
+  git(dir, "config", "log.showSignature", "true");
+  git(dir, "config", "gpg.program", script);
+  await gitRun(dir, ["log", "-1", sha]);
+  assert.equal(existsSync(marker), false);
+});
+
+test("gitRun does not open a planted editor", async () => {
+  const { dir, marker, script } = divergent("editor");
+  git(dir, "config", "core.editor", script);
+  git(dir, "config", "sequence.editor", script);
+  await gitRun(dir, [...ID, "rebase", "main", "feat"], { timeout: 30_000 });
+  await gitRun(dir, ["checkout", "-q", "main"]);
+  assert.equal(existsSync(marker), false);
+});
+
+// ---- layout check (ADR 0032 §3) ---------------------------------------------------
+
+test("assertGitLayout accepts a project and its linked worktree, refuses redirects", async () => {
+  const dir = join(ROOT, "layout");
+  mkdirSync(dir);
+  git(dir, "init", "-q", "-b", "main");
+  writeFileSync(join(dir, "a.txt"), "one\n");
+  git(dir, "add", "-A");
+  git(dir, ...ID, "commit", "-qm", "init");
+  await assertGitLayout(dir, dir, "main");
+  const wt = join(ROOT, "layout-wt");
+  git(dir, "worktree", "add", "-q", "--detach", wt);
+  await assertGitLayout(wt, dir, "worktree");
+  // The worktree is not the main checkout, and vice versa.
+  await assert.rejects(assertGitLayout(wt, dir, "main"), UnsafeGitLayoutError);
+  await assert.rejects(assertGitLayout(dir, dir, "worktree"), UnsafeGitLayoutError);
+
+  // Another repo's worktree does not pass for this project.
+  const other = join(ROOT, "layout-other");
+  mkdirSync(other);
+  git(other, "init", "-q", "-b", "main");
+  await assert.rejects(assertGitLayout(other, dir, "main"), UnsafeGitLayoutError);
+
+  // A `.git` file redirected at another repo's worktree gitdir.
+  const evil = join(ROOT, "layout-evil");
+  mkdirSync(evil);
+  writeFileSync(join(evil, ".git"), `gitdir: ${join(realpathSync(dir), ".git", "worktrees", "layout-wt")}\n`);
+  await assert.rejects(assertGitLayout(evil, dir, "worktree"), UnsafeGitLayoutError);
+
+  git(dir, "config", "core.worktree", realpathSync(dir)); // same place: only the key itself gives it away
+  await assert.rejects(assertGitLayout(dir, dir, "main"), (e: unknown) => e instanceof UnsafeGitLayoutError && /core\.worktree/.test(e.message));
+  git(dir, "config", "--unset", "core.worktree");
+  rmSync(wt, { recursive: true, force: true });
+});
+
+test("unsafeLayoutKey: core.bare=false is normal, true and core.worktree are not", () => {
+  const list = (pairs: [string, string][]) => pairs.map(([k, v]) => `${k}\n${v}\0`).join("");
+  assert.equal(unsafeLayoutKey(list([["core.bare", "false"], ["user.name", "t"]])), null);
+  assert.equal(unsafeLayoutKey(list([["core.bare", "true"]])), "core.bare");
+  assert.equal(unsafeLayoutKey(list([["core.worktree", "/x"]])), "core.worktree");
 });

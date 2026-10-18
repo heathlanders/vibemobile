@@ -193,13 +193,15 @@ export function listTasksText(db: DB, selfId: string): Result {
 // every other live Claude session in the project gets a turn listing the files it
 // changed. Sent by the daemon, not a peer, so the per-sender rate limit doesn't apply.
 // Changed files come from the task branch since its base; if the branch is gone, the
-// task's scope stands in.
+// task's scope stands in. The merge queue passes the exact range it fast-forwarded
+// (`<target_sha>..<tested_sha>`), so the list holds only this task's files.
 const MAX_BROADCAST_FILES = 50;
 
 export async function broadcastTaskDone(
   db: DB,
   registry: Map<string, { pushUser(text: string): void }>,
   t: TaskRow,
+  range?: string,
 ): Promise<void> {
   const others = (
     db
@@ -213,9 +215,10 @@ export async function broadcastTaskDone(
         .get(t.session_id) as { worktree_branch: string | null; base_ref: string | null; path: string } | undefined)
     : undefined;
   let files = t.scope;
-  if (wt?.worktree_branch && wt.base_ref) {
+  const diffRange = range ?? (wt?.worktree_branch && wt.base_ref ? `${wt.base_ref}...${wt.worktree_branch}` : null);
+  if (wt && diffRange) {
     try {
-      const out = await gitRun(wt.path, ["diff", "--name-only", `${wt.base_ref}...${wt.worktree_branch}`, "--"]);
+      const out = await gitRun(wt.path, ["diff", "--name-only", diffRange, "--"]);
       files = out.stdout.split("\n").filter(Boolean);
     } catch {
       // branch deleted or repo refused (git-run.ts): fall back to the scope

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../domain/merge_item.dart';
 import '../domain/task.dart';
 
 /// Swarm tasks (proposal 65) — /projects/:id/tasks, /tasks/:id[/dispatch].
@@ -39,6 +40,54 @@ class TaskApi {
     _check(res);
     return res.data!['session_id'] as String;
   }
+
+  // Swarm merge queue (ADR 0032).
+
+  Future<MergeItem> enqueue(String taskId) async {
+    final res = await _dio.post<Map<String, dynamic>>('/tasks/$taskId/enqueue');
+    _check(res);
+    return MergeItem.fromJson(res.data!);
+  }
+
+  Future<List<MergeItem>> listQueue(String projectId) async {
+    final res = await _dio.get<dynamic>('/projects/$projectId/merge-queue');
+    _check(res);
+    return ((res.data as List<dynamic>?) ?? []).map((e) => MergeItem.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// [sha] is the item's full `tested_sha`, as shown to the user.
+  Future<MergeItem> approve(String itemId, String sha) async {
+    final res = await _dio.post<Map<String, dynamic>>('/merge-queue/$itemId/approve', data: {'sha': sha});
+    _check(res);
+    return MergeItem.fromJson(res.data!);
+  }
+
+  Future<MergeItem> reject(String itemId) async {
+    final res = await _dio.post<Map<String, dynamic>>('/merge-queue/$itemId/reject');
+    _check(res);
+    return MergeItem.fromJson(res.data!);
+  }
+
+  Future<MergeItem> requeue(String itemId) async {
+    final res = await _dio.post<Map<String, dynamic>>('/merge-queue/$itemId/requeue');
+    _check(res);
+    return MergeItem.fromJson(res.data!);
+  }
+
+  /// The project's test command argv, or null when none is set.
+  Future<List<String>?> getProjectSettings(String projectId) async {
+    final res = await _dio.get<Map<String, dynamic>>('/projects/$projectId/settings');
+    _check(res);
+    return _argv(res.data?['test_command']);
+  }
+
+  Future<List<String>?> putProjectSettings(String projectId, {List<String>? testCommand}) async {
+    final res = await _dio.put<Map<String, dynamic>>('/projects/$projectId/settings', data: {'test_command': testCommand});
+    _check(res);
+    return _argv(res.data?['test_command']);
+  }
+
+  static List<String>? _argv(Object? v) => v is List ? v.map((e) => '$e').toList() : null;
 
   // dioFor doesn't throw on 4xx; surface them (a 409 names the blocker).
   void _check(Response<dynamic> res) {

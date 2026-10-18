@@ -20,6 +20,8 @@ import { registerSessionWs } from "./session-ws.js";
 import { registerPromptRoutes } from "./prompts.js";
 import { registerNoteRoutes } from "./notes.js";
 import { registerTaskRoutes } from "./task-routes.js";
+import { registerMergeQueueRoutes } from "./merge-queue-routes.js";
+import { registerProjectSettingsRoutes } from "./project-settings.js";
 import { registerScaffoldRoutes } from "./scaffolds.js";
 import { registerProjectCreateRoute } from "./projects.js";
 import { registerGitRoutes } from "./git.js";
@@ -207,6 +209,8 @@ export async function buildApp(
   registerPromptRoutes(app, db); // prompt library CRUD — /prompts
   registerNoteRoutes(app, db); // project notes/TODOs — /projects/:id/notes, /notes/:id (proposal 31)
   registerTaskRoutes(app, db, tmux, { start: (row) => void getOrStart(registry, db, row, queryFn, streamTextFn), registry }); // swarm tasks — /projects/:id/tasks, /tasks/:id[/dispatch] (proposal 65)
+  registerMergeQueueRoutes(app, db, { registry }); // swarm merge queue — /tasks/:id/enqueue, /projects/:id/merge-queue, /merge-queue/:id/* (ADR 0032)
+  registerProjectSettingsRoutes(app, db); // GET/PUT /projects/:id/settings — merge-queue test command (ADR 0032 §5)
   registerScaffoldRoutes(app, db); // foundation templates CRUD — /scaffolds (proposal 17)
   registerProjectCreateRoute(app, db); // POST /projects — new dir + scaffold + git (proposal 17)
   registerGitRoutes(app, db); // GET /projects/:id/git-status — read-only (ADR 0011)

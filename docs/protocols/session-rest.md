@@ -75,6 +75,40 @@ Audit kinds: `task.create`, `task.update`, `task.delete`, `task.dispatch` (REST)
 `task.complete`, `lease.deny` (sessions). Peer tools for the same list are in
 [proposal 30](../proposals/30-session-peer-tools.md#swarm-task-tools-proposal-65).
 
+### Merge queue
+
+[ADR 0032](../decisions/0032-swarm-merge-queue.md). Bearer-gated, phone-only (no peer tool). Brings a
+finished task's commits back to the project's main checkout: rebase, test, then a phone-approved
+fast-forward. An item is `{id, project_id, task_id, session_id, target, source_sha, target_sha,
+tested_sha, state, attempt, result, created_at, updated_at}`; `state` is `queued | rebasing | testing |
+awaiting_approval | merging | merged | bounced`. `merging` means approved with the fast-forward in flight; it is claimed
+before the fast-forward so a reject can't land in the middle (reject answers `409`). `result` is `{diffstat, commits[], untested, test_ok?, test_exit?,
+timed_out?, output?, reason?, notes?}` (`output` is the last 64 KB of the test run, or the failed step's
+output on a bounce). The daemon needs `VIBE_MERGE_DIR` (absolute, outside the project) for the scratch
+worktrees and refuses with `503` without it. Optional tuning: `VIBE_MERGE_TEST_TIMEOUT_MS` (10 min),
+`VIBE_MERGE_TEST_MEMORY_MAX` (`4G`), `VIBE_MERGE_SYSTEMD=0` (skip `systemd-run`), `VIBE_TEST_PATH` (the
+fixed PATH test runners are found on, default `/usr/local/bin:/usr/bin:/bin`).
+
+| Method | Path | Notes |
+|--------|------|-------|
+| `POST` | `/tasks/:id/enqueue` | -> `201` item. `409` unless the task is `review`, its session has a worktree and a `target_branch` (the main checkout's branch when the worktree was made; none on a detached HEAD), the worktree is clean ("commit first"), the layout check passes, and it isn't queued already or bounced (requeue that). `503` without `VIBE_MERGE_DIR` |
+| `GET`  | `/projects/:id/merge-queue` | The 50 newest items, newest first; `404` unknown project |
+| `POST` | `/merge-queue/:id/approve` | `{sha}` = the full `tested_sha` shown to the user. `400` if not 40 hex, `409` if it differs from `tested_sha`, the item isn't `awaiting_approval`, the main checkout isn't on the target or has tracked changes, or the merge would add a path that already exists on disk / under `.vibe-worktrees/` / under `.git`. If the target moved since the test the item goes back to `queued` and the response is `409 … requeued`. Success: `merge --ff-only`, author branch moved to the merged sha, `sessions.base_ref` set, task `done`, change broadcast for `<target_sha>..<tested_sha>` -> the item (state `merged`) |
+| `POST` | `/merge-queue/:id/reject` | From `queued` or `awaiting_approval` -> bounced ("rejected from the phone") |
+| `POST` | `/merge-queue/:id/requeue` | From `bounced`, while the task is still `review` for that session and `attempt < 3` (else `409`: reset the task). Increments `attempt` |
+| `GET`/`PUT` | `/projects/:id/settings` | `{test_command: string[] \| null}`. An argv array (no shell string): 1-32 args of <= 256 chars, `argv[0]` a bare name from `npm pnpm yarn node npx dart flutter cargo make pytest python3 go` that resolves on the fixed PATH to a path outside the project; `400` otherwise. Audited `project.settings`. With none set, items reach approval marked `untested` |
+
+A bounce (conflict, red test, timeout, rejection) tells a live author session with a daemon turn labelled "not
+typed by the user" carrying the capped output as data; otherwise the task goes back to `ready`. Both send
+the content-free push `merge_bounced`; an item reaching approval sends `merge_ready`. While an item is
+active, `DELETE /sessions/:id`, prune, and `DELETE`/`PUT state` on its task return `409`.
+
+Audit kinds: `merge.enqueue`, `merge.test`, `merge.bounce`, `merge.reject`, `merge.requeue`, `merge.ff`,
+`project.settings`. On startup the daemon removes the scratch worktree of items left in `rebasing`/`testing` and requeues them; an item left in
+`merging` becomes `merged` if the target already contains its tested commit (audit `merge.recover`), else returns to
+`awaiting_approval`. If the author's worktree can't follow the fast-forward (e.g. an uncommitted file in the way) the
+author branch is rolled back, `result.notes` says "not synced", and a live author session is told to rebase itself.
+
 The byte/event channels stay on WS, unchanged: `WS /pty/:id` (terminal,
 [pty-ws.md](./pty-ws.md)), `WS /session/:id` (claude, Agent SDK).
 

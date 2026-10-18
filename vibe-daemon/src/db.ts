@@ -139,6 +139,30 @@ CREATE TABLE IF NOT EXISTS tasks (     -- swarm tasks + file leases (proposal 65
 );
 CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
 
+CREATE TABLE IF NOT EXISTS project_settings ( -- per-project, phone-set only (ADR 0032 §5)
+  project_id   TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+  test_command TEXT,                  -- JSON argv array, or null; never read from the repo
+  updated_at   TEXT NOT NULL,
+  updated_by   TEXT
+);
+
+CREATE TABLE IF NOT EXISTS merge_queue ( -- swarm merge queue (merge-queue.ts, ADR 0032)
+  id          TEXT PRIMARY KEY,
+  project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  task_id     TEXT NOT NULL,
+  session_id  TEXT NOT NULL,
+  target      TEXT NOT NULL,          -- branch name, from sessions.target_branch
+  source_sha  TEXT,                   -- the author's branch tip when the rebase started (CAS old value)
+  target_sha  TEXT,                   -- what the rebase landed on
+  tested_sha  TEXT,                   -- the rebased tip; what approval is pinned to
+  state       TEXT NOT NULL DEFAULT 'queued', -- queued | rebasing | testing | awaiting_approval | merged | bounced
+  attempt     INTEGER NOT NULL DEFAULT 1,
+  result      TEXT,                   -- JSON: {untested, test_ok, output, diffstat, reason}
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_merge_queue_project ON merge_queue(project_id, state);
+
 CREATE TABLE IF NOT EXISTS usage_events ( -- token spend per model per turn (spend.ts)
   id            TEXT PRIMARY KEY,
   session_id    TEXT,                 -- no FK: spend history outlives deleted sessions
@@ -312,6 +336,9 @@ function migrate(db: DB): void {
   if (!has("sessions", "worktree_path")) db.exec("ALTER TABLE sessions ADD COLUMN worktree_path TEXT");
   if (!has("sessions", "worktree_branch")) db.exec("ALTER TABLE sessions ADD COLUMN worktree_branch TEXT");
   if (!has("sessions", "base_ref")) db.exec("ALTER TABLE sessions ADD COLUMN base_ref TEXT");
+  // Branch the main checkout was on when the worktree was made: where the merge queue lands
+  // the session's work (ADR 0032 §2). Daemon-set; null = detached HEAD, can't be queued.
+  if (!has("sessions", "target_branch")) db.exec("ALTER TABLE sessions ADD COLUMN target_branch TEXT");
   // Reasoning effort (proposal 39): 'low'|'medium'|'high'|'xhigh'|'max', null = the model's default.
   if (!has("sessions", "effort")) db.exec("ALTER TABLE sessions ADD COLUMN effort TEXT");
   // Prompt library usage (ADR 0018): "most used" sort.

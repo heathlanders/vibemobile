@@ -9,7 +9,10 @@ import '../../chat/presentation/chat_screen.dart';
 import '../../sessions/data/session_api.dart';
 import '../../sessions/domain/session.dart';
 import '../data/task_api.dart';
+import '../domain/merge_item.dart';
 import '../domain/task.dart';
+import 'merge_approval_screen.dart';
+import 'project_settings_dialog.dart';
 
 /// Opens a project's swarm tasks (proposal 65): a bottom sheet on mobile, a dialog
 /// on desktop.
@@ -47,6 +50,7 @@ class TasksPanel extends StatefulWidget {
 class _TasksPanelState extends State<TasksPanel> {
   late final TaskApi _api = widget.api ?? TaskApi(dioFor(widget.creds));
   List<Task>? _tasks;
+  Map<String, MergeItem> _queue = const {}; // latest queue item per task id
   String? _error;
 
   @override
@@ -58,9 +62,15 @@ class _TasksPanelState extends State<TasksPanel> {
   Future<void> _load() async {
     try {
       final tasks = await _api.list(widget.project.id);
+      // The queue is secondary: a failure (e.g. 503 without VIBE_MERGE_DIR) must not hide the tasks.
+      var queue = _queue;
+      try {
+        queue = latestByTask(await _api.listQueue(widget.project.id));
+      } catch (_) {}
       if (mounted) {
         setState(() {
           _tasks = tasks;
+          _queue = queue;
           _error = null;
         });
       }
@@ -87,6 +97,16 @@ class _TasksPanelState extends State<TasksPanel> {
         await _api.dispatch(t.id);
         _say('Started a session for "${t.title}"'); // the refresh shows it running; Open session jumps to it
       });
+
+  Future<void> _enqueue(Task t) => _act('Could not merge', () async {
+        await _api.enqueue(t.id);
+        _say('"${t.title}" queued for merge');
+      });
+
+  Future<void> _openMerge(Task t, MergeItem item) async {
+    await showMergeApproval(context, _api, item, taskTitle: t.title);
+    await _load();
+  }
 
   Future<void> _openSession(Task t) async {
     final id = t.sessionId;
@@ -151,6 +171,11 @@ class _TasksPanelState extends State<TasksPanel> {
             child: Text('Tasks · ${widget.project.label}',
                 style: theme.textTheme.titleMedium, overflow: TextOverflow.ellipsis),
           ),
+          IconButton(
+            tooltip: 'Project settings',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => showProjectSettings(context, _api, widget.project),
+          ),
           TextButton.icon(
             icon: const Icon(Icons.add, size: 18),
             label: const Text('New task'),
@@ -204,7 +229,9 @@ class _TasksPanelState extends State<TasksPanel> {
       title: Text(t.title),
       subtitle: sub.isEmpty ? null : Text(sub, maxLines: 3, overflow: TextOverflow.ellipsis),
       onTap: t.state == 'ready' ? () => _form(t) : null,
-      trailing: PopupMenuButton<String>(
+      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (_queue[t.id] case final item?) MergeBadge(item: item, onTap: () => _openMerge(t, item)),
+        PopupMenuButton<String>(
         tooltip: 'Task actions',
         onSelected: (a) {
           switch (a) {
@@ -212,6 +239,8 @@ class _TasksPanelState extends State<TasksPanel> {
               _dispatch(t);
             case 'open':
               _openSession(t);
+            case 'merge':
+              _enqueue(t);
             case 'done':
               _setState(t, 'done');
             case 'ready':
@@ -223,11 +252,13 @@ class _TasksPanelState extends State<TasksPanel> {
         itemBuilder: (_) => [
           if (t.state == 'ready') const PopupMenuItem(value: 'dispatch', child: Text('Dispatch')),
           if (t.sessionId != null) const PopupMenuItem(value: 'open', child: Text('Open session')),
+          if (t.state == 'review' && !_queue.containsKey(t.id)) const PopupMenuItem(value: 'merge', child: Text('Merge')),
           if (t.state == 'review') const PopupMenuItem(value: 'done', child: Text('Mark done')),
           if (t.state != 'ready') const PopupMenuItem(value: 'ready', child: Text('Back to ready')),
           const PopupMenuItem(value: 'delete', child: Text('Delete')),
         ],
-      ),
+        ),
+      ]),
     );
   }
 }

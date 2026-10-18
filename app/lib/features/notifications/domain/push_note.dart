@@ -98,6 +98,21 @@ List<PushNote> buildNotes(String type, String sessionId, Map<String, dynamic> pe
     ];
   }
 
+  // Swarm merge queue (ADR 0032): content-free; the details are on the approval screen.
+  if (type == 'merge_ready' || type == 'merge_bounced') {
+    final ready = type == 'merge_ready';
+    return [
+      PushNote(
+        id: stableNoteId('$type:$sessionId'),
+        title: ready ? 'Merge ready for approval' : 'Merge bounced',
+        body: ready ? 'Review and approve it in the tasks panel.' : 'Open the tasks panel to see why.',
+        actions: const [],
+        payload: NotePayload(sessionId: sessionId, kind: 'done').encode(),
+        prompt: ready,
+      ),
+    ];
+  }
+
   // A CLI session's prompt lives in its terminal (ADR 0014): no details to
   // fetch, no buttons — tap opens the session. One id per session, so a newer
   // state replaces the older one.
