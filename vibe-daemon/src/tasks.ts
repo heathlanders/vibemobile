@@ -12,6 +12,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import type { DB } from "./db.js";
 import { logEvent } from "./auth.js";
 import { notifyDevices } from "./push.js";
+import { gitRun } from "./git-run.js";
 
 export const MAX_SCOPE_ENTRIES = 50;
 export const MAX_SCOPE_CHARS = 512;
@@ -186,6 +187,49 @@ export function listTasksText(db: DB, selfId: string): Result {
       })
       .join("\n"),
   };
+}
+
+// Change broadcast (proposal 64, S4). When a task is marked done (the user merged it),
+// every other live Claude session in the project gets a turn listing the files it
+// changed. Sent by the daemon, not a peer, so the per-sender rate limit doesn't apply.
+// Changed files come from the task branch since its base; if the branch is gone, the
+// task's scope stands in.
+const MAX_BROADCAST_FILES = 50;
+
+export async function broadcastTaskDone(
+  db: DB,
+  registry: Map<string, { pushUser(text: string): void }>,
+  t: TaskRow,
+): Promise<void> {
+  const others = (
+    db
+      .prepare("SELECT id FROM sessions WHERE project_id = ? AND kind = 'claude' AND id IS NOT ?")
+      .all(t.project_id, t.session_id) as { id: string }[]
+  ).filter((r) => registry.has(r.id));
+  if (!others.length) return;
+  const wt = t.session_id
+    ? (db
+        .prepare("SELECT s.worktree_branch, s.base_ref, p.path FROM sessions s JOIN projects p ON p.id = s.project_id WHERE s.id = ?")
+        .get(t.session_id) as { worktree_branch: string | null; base_ref: string | null; path: string } | undefined)
+    : undefined;
+  let files = t.scope;
+  if (wt?.worktree_branch && wt.base_ref) {
+    try {
+      const out = await gitRun(wt.path, ["diff", "--name-only", `${wt.base_ref}...${wt.worktree_branch}`, "--"]);
+      files = out.stdout.split("\n").filter(Boolean);
+    } catch {
+      // branch deleted or repo refused (git-run.ts): fall back to the scope
+    }
+  }
+  const list = files.slice(0, MAX_BROADCAST_FILES).map((f) => `- ${f}`);
+  if (files.length > MAX_BROADCAST_FILES) list.push(`- … and ${files.length - MAX_BROADCAST_FILES} more`);
+  const text = [
+    `[Notice from VibeMobile — not typed by the user. Another session's task '${t.title}' (${t.id}) was merged.]`,
+    `\nFiles it changed:\n${list.join("\n") || "- (none recorded)"}`,
+    "\nIf your work touches these files, rebase onto the updated branch (or pull, in the main checkout) before continuing. Otherwise carry on.",
+  ].join("\n");
+  for (const o of others) registry.get(o.id)?.pushUser(text);
+  logEvent(db, "task.broadcast", null, `${t.id}->${others.length}`);
 }
 
 export function taskPrompt(t: TaskRow): string {

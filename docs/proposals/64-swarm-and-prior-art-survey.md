@@ -119,6 +119,8 @@ Impact and feasibility are each rated H/M/L. Complexity: S ≈ 1 session, M ≈ 
   runs through the existing exec allowlist (proposal 60, phase 2).
 
 **S4. Change broadcast.** Impact M–H · Feasibility H · **S**
+- **Built (2026-10-18):** fires on `review` → `done` until S3 exists; S3 will call the same
+  `broadcastTaskDone` (`tasks.ts`). File names only, no signatures yet.
 - **What:** when the queue merges a task, every other running session in the project gets a short
   peer message: changed files and signatures, plus "rebase before continuing".
 - **Prior art:** the STALE paper's recovery result; agent-teams mailboxes.

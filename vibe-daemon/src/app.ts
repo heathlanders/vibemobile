@@ -206,7 +206,7 @@ export async function buildApp(
   registerSessionWs(app, db, registry, queryFn, streamTextFn); // claude + native events — WS /session/:id
   registerPromptRoutes(app, db); // prompt library CRUD — /prompts
   registerNoteRoutes(app, db); // project notes/TODOs — /projects/:id/notes, /notes/:id (proposal 31)
-  registerTaskRoutes(app, db, tmux, { start: (row) => void getOrStart(registry, db, row, queryFn, streamTextFn) }); // swarm tasks — /projects/:id/tasks, /tasks/:id[/dispatch] (proposal 65)
+  registerTaskRoutes(app, db, tmux, { start: (row) => void getOrStart(registry, db, row, queryFn, streamTextFn), registry }); // swarm tasks — /projects/:id/tasks, /tasks/:id[/dispatch] (proposal 65)
   registerScaffoldRoutes(app, db); // foundation templates CRUD — /scaffolds (proposal 17)
   registerProjectCreateRoute(app, db); // POST /projects — new dir + scaffold + git (proposal 17)
   registerGitRoutes(app, db); // GET /projects/:id/git-status — read-only (ADR 0011)
