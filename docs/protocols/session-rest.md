@@ -482,6 +482,10 @@ identical bodies: `/projects/:id/git/<op>` (the project checkout) and
 `/sessions/:id/git/<op>` (the session's checkout — its worktree if it has one,
 ADR 0022; Claude sessions only). All bearer-gated, 30/min, one write at a time per
 checkout. Failures are generic (`409 git refused …`) — git's own stderr is never echoed.
+One exception: a repo whose git config defines a filter, merge or diff driver command
+or an `includeIf.onbranch:` include is refused with `409 repo_config_unsafe: <key>` — the
+key name only, never its value (ADR 0032 §4). Worktree creation reports the same text.
+Stage with no `paths` (`add -u`) returns `409` in a repo with submodules; pass explicit paths.
 
 | Op | Body | Notes |
 |----|------|-------|

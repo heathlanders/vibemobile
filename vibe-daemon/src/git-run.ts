@@ -8,6 +8,8 @@
 //   - `-c` overrides, which beat repo-local config, neutralise the code-exec knobs
 //   - env stripped of GIT_* (GIT_DIR, GIT_SSH_COMMAND, GIT_EXTERNAL_DIFF, …)
 //   - timeout + output cap
+//   - refuse repos whose config defines filter/merge/diff driver commands (ADR 0032 §4):
+//     .gitattributes picks the driver NAME, so no fixed `-c` list can blank them all
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -36,11 +38,49 @@ export function gitEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv
   return env;
 }
 
+// Config keys whose value git runs as a command during add/checkout/diff/merge.
+// Subsections may contain dots, so match on the first section and the last key.
+// `includeIf.onbranch:` is refused too: what it pulls in changes with the checked-out
+// branch, so a check on one branch says nothing about the next checkout.
+const DRIVER_KEY =
+  /^(filter\..+\.(clean|smudge|process)|merge\..+\.driver|diff\..+\.(textconv|command)|includeif\.onbranch:.*)$/i;
+
+export class UnsafeGitConfigError extends Error {
+  constructor(readonly key: string) {
+    super(`repo_config_unsafe: ${key}`);
+  }
+}
+
+// Input: `git config -z --list` output (`key\nvalue\0` entries). Returns the first
+// refused key, or null.
+export function unsafeDriverKey(listZ: string): string | null {
+  for (const entry of listZ.split("\0")) {
+    const nl = entry.indexOf("\n");
+    const key = nl < 0 ? entry : entry.slice(0, nl);
+    if (DRIVER_KEY.test(key)) return key;
+  }
+  return null;
+}
+
 export async function gitRun(
   cwd: string,
   argv: string[],
   opts: { timeout?: number; maxBuffer?: number } = {},
 ): Promise<{ stdout: string; stderr: string }> {
+  // `--list` follows include.path, so drivers pulled in from other files show up too.
+  // Listing config never runs a driver. Checked on every call, in the cwd the call runs
+  // in (includeIf gitdir: differs per worktree); the agent can edit config at any time,
+  // so a gap between this check and the real call remains. Submodules have their own
+  // config this can't see: callers keep git out of them (--ignore-submodules=all on
+  // status, no `add -u` when the index has gitlinks).
+  const { stdout: config } = await exec("git", [...GIT_HARDEN_ARGS, "config", "-z", "--list"], {
+    cwd,
+    env: gitEnv(),
+    timeout: GIT_TIMEOUT_MS,
+    maxBuffer: GIT_MAX_BUFFER,
+  });
+  const bad = unsafeDriverKey(config);
+  if (bad) throw new UnsafeGitConfigError(bad);
   return exec("git", [...GIT_HARDEN_ARGS, ...argv], {
     cwd,
     env: gitEnv(),

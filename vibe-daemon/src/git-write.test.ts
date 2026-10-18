@@ -113,6 +113,19 @@ test("stage with no paths is `add -u`: tracked changes only, never untracked fil
   assert.deepEqual(r.json().staged, ["a.txt"]);
 });
 
+test("stage-all refuses a repo with submodules (add -u would run their filters); explicit paths still work", async () => {
+  const { post, dir } = await setup();
+  const up = repo();
+  git(dir, "-c", "protocol.file.allow=always", "submodule", "add", "-q", up, "sub");
+  gitc(dir, "commit", "-qm", "sub");
+  writeFileSync(join(dir, "a.txt"), "two\n");
+  const all = await post("/projects/p/git/stage", {});
+  assert.equal(all.statusCode, 409);
+  assert.match(all.json().error, /submodules/);
+  const one = await post("/projects/p/git/stage", { paths: ["a.txt"] });
+  assert.deepEqual(one.json().staged, ["a.txt"]);
+});
+
 test("stage refuses hostile paths with 400 and stages nothing", async () => {
   const { post, dir } = await setup();
   writeFileSync(join(dir, "a.txt"), "two\n");

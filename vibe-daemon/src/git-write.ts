@@ -18,7 +18,7 @@ import type { DB } from "./db.js";
 import { logEvent, type Device } from "./auth.js";
 import { canonical, inside } from "./file-scope.js";
 import { collectFileEdits } from "./file-edits.js";
-import { gitRun } from "./git-run.js";
+import { gitRun, UnsafeGitConfigError } from "./git-run.js";
 import { pathInRoots } from "./paths.js";
 
 const SLOW_MS = 30_000;
@@ -96,6 +96,8 @@ function serial<T>(key: string, fn: () => Promise<T>): Promise<T> {
 }
 
 const refused = (reply: FastifyReply, code: number, error: string) => reply.code(code).send({ error });
+// A repo refused by gitRun's driver check says why (ADR 0032 §4); other failures stay generic.
+const why = (e: unknown, fallback: string) => (e instanceof UnsafeGitConfigError ? e.message : fallback);
 
 type Ctx = { cwd: string; sessionId?: string };
 
@@ -128,13 +130,18 @@ export function registerGitWriteRoutes(app: FastifyInstance, db: DB): void {
       if (rels.length === 0) return refused(reply, 409, "nothing to stage from this session's edits");
     }
     try {
+      // `add -u` checks submodules for changes, which runs their filters under their
+      // own config — config gitRun can't see (ADR 0032 §4). Explicit paths don't.
+      if (!rels && /^160000 /m.test((await gitRun(ctx.cwd, ["ls-files", "-s"], { maxBuffer: 64 * 1024 * 1024 })).stdout)) {
+        return refused(reply, 409, "this repo has submodules: stage specific paths instead");
+      }
       const argv = rels ? ["--literal-pathspecs", "add", "--", ...rels] : ["add", "-u"];
       await serial(ctx.cwd, () => gitRun(ctx.cwd, argv, { timeout: SLOW_MS }));
       const staged = (await gitRun(ctx.cwd, ["diff", "--cached", "--name-only"])).stdout.split("\n").filter(Boolean);
       logEvent(db, "git.stage", deviceId, `${ctx.sessionId ?? ctx.cwd}:${staged.length}`);
       return { staged };
-    } catch {
-      return refused(reply, 409, "git refused to stage those paths");
+    } catch (e) {
+      return refused(reply, 409, why(e, "git refused to stage those paths"));
     }
   }
 
@@ -164,8 +171,8 @@ export function registerGitWriteRoutes(app: FastifyInstance, db: DB): void {
         logEvent(db, "git.commit", device?.id ?? null, `${ctx.sessionId ?? ctx.cwd}:${sha.slice(0, 12)}:${files}:${message.slice(0, 80)}`);
         return { sha, subject: message.split("\n")[0].slice(0, 200), filesChanged: files };
       });
-    } catch {
-      return refused(reply, 409, "git refused to commit");
+    } catch (e) {
+      return refused(reply, 409, why(e, "git refused to commit"));
     }
   }
 
@@ -177,15 +184,15 @@ export function registerGitWriteRoutes(app: FastifyInstance, db: DB): void {
         await gitRun(ctx.cwd, ["check-ref-format", "--branch", name]);
         // Tracked changes only: untracked files (build output, scratch) can't conflict
         // with a new branch at the same commit, so they shouldn't block it.
-        if ((await gitRun(ctx.cwd, ["status", "--porcelain", "--untracked-files=no"])).stdout.trim()) {
+        if ((await gitRun(ctx.cwd, ["status", "--porcelain", "--untracked-files=no", "--ignore-submodules=all"])).stdout.trim()) {
           return refused(reply, 409, "working tree has uncommitted changes — commit or discard them first");
         }
         await gitRun(ctx.cwd, ["checkout", "-b", name], { timeout: SLOW_MS });
         logEvent(db, "git.branch", deviceId, `${ctx.sessionId ?? ctx.cwd}:${name}`);
         return { branch: name };
       });
-    } catch {
-      return refused(reply, 409, "could not create that branch (it may already exist)");
+    } catch (e) {
+      return refused(reply, 409, why(e, "could not create that branch (it may already exist)"));
     }
   }
 
