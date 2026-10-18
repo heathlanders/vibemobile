@@ -20,6 +20,7 @@ import { canonical, inside } from "./file-scope.js";
 import { collectFileEdits } from "./file-edits.js";
 import { gitRun, UnsafeGitConfigError } from "./git-run.js";
 import { pathInRoots } from "./paths.js";
+import { withProjectLock } from "./project-lock.js";
 
 const SLOW_MS = 30_000;
 const MAX_PATHS = 500;
@@ -86,15 +87,6 @@ export function checkStagePath(cwd: string, raw: unknown, allowSensitive: boolea
 const authorName = (name: string | undefined): string =>
   (name ?? "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 64) || "vibe";
 
-// One git write at a time per checkout.
-const locks = new Map<string, Promise<unknown>>();
-function serial<T>(key: string, fn: () => Promise<T>): Promise<T> {
-  const run = (locks.get(key) ?? Promise.resolve()).catch(() => {}).then(fn);
-  locks.set(key, run);
-  void run.finally(() => locks.get(key) === run && locks.delete(key)).catch(() => {});
-  return run;
-}
-
 const refused = (reply: FastifyReply, code: number, error: string) => reply.code(code).send({ error });
 // A repo refused by gitRun's driver check says why (ADR 0032 §4); other failures stay generic.
 const why = (e: unknown, fallback: string) => (e instanceof UnsafeGitConfigError ? e.message : fallback);
@@ -136,7 +128,7 @@ export function registerGitWriteRoutes(app: FastifyInstance, db: DB): void {
         return refused(reply, 409, "this repo has submodules: stage specific paths instead");
       }
       const argv = rels ? ["--literal-pathspecs", "add", "--", ...rels] : ["add", "-u"];
-      await serial(ctx.cwd, () => gitRun(ctx.cwd, argv, { timeout: SLOW_MS }));
+      await withProjectLock(ctx.cwd, () => gitRun(ctx.cwd, argv, { timeout: SLOW_MS }));
       const staged = (await gitRun(ctx.cwd, ["diff", "--cached", "--name-only"])).stdout.split("\n").filter(Boolean);
       logEvent(db, "git.stage", deviceId, `${ctx.sessionId ?? ctx.cwd}:${staged.length}`);
       return { staged };
@@ -151,7 +143,7 @@ export function registerGitWriteRoutes(app: FastifyInstance, db: DB): void {
     }
     const message = body.message;
     try {
-      return await serial(ctx.cwd, async () => {
+      return await withProjectLock(ctx.cwd, async () => {
         const has = (await gitRun(ctx.cwd, ["diff", "--cached", "--name-only"])).stdout.trim();
         if (!has) return refused(reply, 409, "nothing staged");
         await gitRun(
@@ -180,7 +172,7 @@ export function registerGitWriteRoutes(app: FastifyInstance, db: DB): void {
     if (!validBranchName(body.name)) return refused(reply, 400, "invalid branch name");
     const name = body.name;
     try {
-      return await serial(ctx.cwd, async () => {
+      return await withProjectLock(ctx.cwd, async () => {
         await gitRun(ctx.cwd, ["check-ref-format", "--branch", name]);
         // Tracked changes only: untracked files (build output, scratch) can't conflict
         // with a new branch at the same commit, so they shouldn't block it.

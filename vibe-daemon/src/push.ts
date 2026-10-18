@@ -21,6 +21,9 @@ export type PushType =
   | "done"
   // A swarm task reached review (tasks.ts, proposal 65): sessionId is the task's session.
   | "task_review"
+  // Merge queue (merge-queue.ts, ADR 0032): an item awaits approval / was bounced. sessionId is the author session.
+  | "merge_ready"
+  | "merge_bounced"
   // A CLI session outside the daemon (hook.ts, ADR 0014): answered in its terminal.
   | "cli_permission"
   | "cli_question"

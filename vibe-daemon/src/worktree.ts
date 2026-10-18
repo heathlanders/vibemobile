@@ -15,7 +15,7 @@ export const WORKTREE_DIR = ".vibe-worktrees";
 const SESSION_ID = /^s_[0-9a-f]{12}$/; // sessions.ts newId()
 const SLOW_MS = 60_000; // checkout of a big repo; the 5 s default is for status
 
-export type Worktree = { path: string; branch: string; baseRef: string };
+export type Worktree = { path: string; branch: string; baseRef: string; targetBranch: string | null };
 export class WorktreeError extends Error {}
 
 export const worktreePathFor = (projectPath: string, sessionId: string): string =>
@@ -44,10 +44,13 @@ export async function createWorktree(projectPath: string, sessionId: string): Pr
   if (!inside(canonical(path), canonical(projectPath))) throw new WorktreeError("worktree path escapes project");
 
   let baseRef: string;
+  let targetBranch: string | null = null;
   try {
     const bare = (await gitRun(projectPath, ["rev-parse", "--is-bare-repository"])).stdout.trim();
     if (bare !== "false") throw new WorktreeError("project is a bare repository");
     baseRef = (await gitRun(projectPath, ["rev-parse", "--verify", "HEAD"])).stdout.trim();
+    // Where the merge queue lands this work (ADR 0032 §2). Fails on a detached HEAD: no target.
+    targetBranch = (await gitRun(projectPath, ["symbolic-ref", "--short", "HEAD"]).catch(() => ({ stdout: "" }))).stdout.trim() || null;
   } catch (e) {
     if (e instanceof WorktreeError) throw e;
     if (e instanceof UnsafeGitConfigError) throw new WorktreeError(e.message);
@@ -72,7 +75,7 @@ export async function createWorktree(projectPath: string, sessionId: string): Pr
   } catch (e) {
     throw new WorktreeError(e instanceof UnsafeGitConfigError ? e.message : "could not create the worktree");
   }
-  return { path, branch, baseRef };
+  return { path, branch, baseRef, targetBranch };
 }
 
 export type RemoveResult = { kept: false } | { kept: true; reason: "dirty" | "commits" | "error" };
