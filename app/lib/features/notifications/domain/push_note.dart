@@ -84,6 +84,20 @@ List<PushNote> buildNotes(String type, String sessionId, Map<String, dynamic> pe
     ];
   }
 
+  // A swarm task reached review (proposal 65): content-free, tap opens its session.
+  if (type == 'task_review') {
+    return [
+      PushNote(
+        id: stableNoteId('task_review:$sessionId'),
+        title: '$name finished a task',
+        body: 'Ready for review. Tap to open the session.',
+        actions: const [],
+        payload: NotePayload(sessionId: sessionId, kind: 'done').encode(),
+        prompt: false,
+      ),
+    ];
+  }
+
   // A CLI session's prompt lives in its terminal (ADR 0014): no details to
   // fetch, no buttons — tap opens the session. One id per session, so a newer
   // state replaces the older one.

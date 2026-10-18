@@ -29,6 +29,20 @@ VibeMobile session s_x "Title" — not typed by the user …]`), so it and anyon
 reading its chat can tell it isn't the user's own typing. A message sent while the
 target is mid-turn is picked up at its next tool boundary (proposal 26 spike).
 
+## Swarm task tools (proposal 65)
+
+The same `vibe-peers` server also carries the project's task list ([proposal 65](65-swarm-tasks-and-leases.md),
+logic in `tasks.ts`; REST in [session-rest.md](../protocols/session-rest.md#swarm-tasks)):
+
+| Tool | Does |
+|------|------|
+| `list_tasks` | The project's tasks: id, state, scope, deps, session; `READY` when deps are done and nothing overlapping is held |
+| `claim_task {id}` | Binds a `ready` task to this session in one transaction (deps, overlap and `VIBE_SWARM_MAX` checked). Refused in plan mode and for sessions without a worktree. Audit `task.claim` |
+| `complete_task {id, summary}` | Owning session only: task -> `review`, summary appended under `## Result`, `task_review` push. Audit `task.complete` |
+
+While a task is `running` or `review`, other sessions in the project are denied `Write`/`Edit`/`MultiEdit`/
+`NotebookEdit` on its scope (advisory; Bash and the native engine are not checked, security.md #35).
+
 ## Rules (enforced in the handlers, not only the gate)
 
 - **Same project only.** Cross-project and unknown ids return the same error, so

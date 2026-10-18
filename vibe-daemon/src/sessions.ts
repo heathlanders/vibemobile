@@ -36,7 +36,7 @@ export const maxLive = (kind: string): number =>
   kind === "claude" ? Number(process.env.VIBE_MAX_CLAUDE ?? 6) : Number(process.env.VIBE_MAX_TERMINAL ?? 8);
 
 // Isolated worktrees on disk (ADR 0022). Kept ones count until removed by hand.
-const maxWorktrees = (): number => Number(process.env.VIBE_MAX_WORKTREES ?? 12);
+export const maxWorktrees = (): number => Number(process.env.VIBE_MAX_WORKTREES ?? 12);
 
 type SessionRow = {
   id: string;
@@ -62,6 +62,88 @@ async function reconcile(db: DB, tmux: Tmux, row: SessionRow): Promise<SessionRo
     return { ...row, status: "stale" };
   }
   return row;
+}
+
+export type CreateSessionInput = {
+  project_id: string;
+  kind: "terminal" | "claude";
+  title?: string;
+  initialPrompt?: string;
+  model?: string;
+  mode?: string;
+  worktree?: boolean;
+  agent?: { label: string; command: string };
+  preset?: string;
+};
+export type CreateSessionResult =
+  | { ok: true; body: { id: string; project_id: string; kind: string; title: string | null; status: string; created_at: string; model: string | null; worktree_branch: string | null } }
+  | { ok: false; status: number; error: string };
+const fail = (status: number, error: string): CreateSessionResult => ({ ok: false, status, error });
+
+// Everything after request validation: project lookup, caps, disk guard, worktree,
+// row insert. Shared by POST /sessions and task dispatch (tasks.ts).
+export async function createSession(db: DB, tmux: Tmux, input: CreateSessionInput, deviceId: string | null): Promise<CreateSessionResult> {
+  const { project_id, kind, title, initialPrompt, model, preset, mode, worktree, agent } = input;
+  const project = db.prepare("SELECT id, path FROM projects WHERE id = ?").get(project_id) as
+    | { id: string; path: string }
+    | undefined;
+  if (!project) return fail(404, "project not found");
+  if (!pathInRoots(project.path)) return fail(400, "project path out of bounds");
+
+  // Reject before spawning anything (tmux / SDK subprocess) once the host is full.
+  const live = (
+    db.prepare("SELECT COUNT(*) AS n FROM sessions WHERE kind = ? AND status = 'live'").get(kind) as { n: number }
+  ).n;
+  if (live >= maxLive(kind)) {
+    logEvent(db, "session.cap", deviceId, `${kind}:${live}`);
+    return fail(429, `too many live ${kind} sessions (max ${maxLive(kind)})`);
+  }
+
+  // Don't start new work on a nearly full disk (setting disk.min_free_gb, ADR 0026).
+  const disk = diskGuard(db, project.path);
+  if (!disk.ok) {
+    logEvent(db, "session.disk_guard", deviceId, `${kind}:${project.path}`);
+    return fail(507, disk.message);
+  }
+
+  if (worktree === true) {
+    const n = (db.prepare("SELECT COUNT(*) AS n FROM sessions WHERE worktree_path IS NOT NULL").get() as { n: number }).n;
+    if (n >= maxWorktrees()) {
+      return fail(429, `too many worktree sessions (max ${maxWorktrees()}) — delete one first`);
+    }
+  }
+
+  const id = newId();
+  const created_at = nowIso();
+  let wt: Awaited<ReturnType<typeof createWorktree>> | null = null;
+  if (worktree === true) {
+    try {
+      wt = await createWorktree(project.path, id);
+    } catch (e) {
+      return fail(400, e instanceof WorktreeError ? e.message : "could not create the worktree");
+    }
+    logEvent(db, "session.worktree.create", deviceId, `${id}:${wt.branch}`);
+  }
+  if (kind === "terminal") await tmux.createSession(id, project.path, agent?.command); // claude spawns on WS attach
+  // initialPrompt (proposal 15): only meaningful for claude — primed as the first
+  // turn when the SDK starts on attach, so create-and-prime is atomic (no race).
+  const initial = kind === "claude" && typeof initialPrompt === "string" && initialPrompt.trim() ? initialPrompt : null;
+  // Model is only meaningful for claude sessions (ADR 0007). Any string is
+  // accepted — the gateway rejects unknown ids at runtime (no coupling to /models).
+  const sessionModel = kind === "claude" && typeof model === "string" && model.trim() ? model.trim() : null;
+  const sessionTitle = title ?? agent?.label ?? null;
+  db.prepare(
+    "INSERT INTO sessions (id, project_id, kind, title, status, created_at, initial_prompt, model, mode, worktree_path, worktree_branch, base_ref) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+  ).run(id, project_id, kind, sessionTitle, "live", created_at, initial, sessionModel, mode ? parseMode(mode) : null, wt?.path ?? null, wt?.branch ?? null, wt?.baseRef ?? null);
+  logEvent(db, "session.create", deviceId, agent ? `${id} preset:${preset}` : id);
+
+  return {
+    ok: true,
+    body: {
+      id, project_id, kind, title: sessionTitle, status: "live", created_at, model: sessionModel,
+      worktree_branch: wt?.branch ?? null,
+    },
+  };
 }
 
 export function registerSessionRoutes(app: FastifyInstance, db: DB, tmux: Tmux, registry: ClaudeRegistry): void {
@@ -115,63 +197,9 @@ export function registerSessionRoutes(app: FastifyInstance, db: DB, tmux: Tmux, 
       agent = p;
     }
 
-    const project = db.prepare("SELECT id, path FROM projects WHERE id = ?").get(project_id) as
-      | { id: string; path: string }
-      | undefined;
-    if (!project) return reply.code(404).send({ error: "project not found" });
-    if (!pathInRoots(project.path)) return reply.code(400).send({ error: "project path out of bounds" });
-
-    // Reject before spawning anything (tmux / SDK subprocess) once the host is full.
-    const live = (
-      db.prepare("SELECT COUNT(*) AS n FROM sessions WHERE kind = ? AND status = 'live'").get(kind) as { n: number }
-    ).n;
-    if (live >= maxLive(kind)) {
-      logEvent(db, "session.cap", (req as { device?: Device }).device?.id ?? null, `${kind}:${live}`);
-      return reply.code(429).send({ error: `too many live ${kind} sessions (max ${maxLive(kind)})` });
-    }
-
-    // Don't start new work on a nearly full disk (setting disk.min_free_gb, ADR 0026).
-    const disk = diskGuard(db, project.path);
-    if (!disk.ok) {
-      logEvent(db, "session.disk_guard", (req as { device?: Device }).device?.id ?? null, `${kind}:${project.path}`);
-      return reply.code(507).send({ error: disk.message });
-    }
-
-    if (worktree === true) {
-      const n = (db.prepare("SELECT COUNT(*) AS n FROM sessions WHERE worktree_path IS NOT NULL").get() as { n: number }).n;
-      if (n >= maxWorktrees()) {
-        return reply.code(429).send({ error: `too many worktree sessions (max ${maxWorktrees()}) — delete one first` });
-      }
-    }
-
-    const id = newId();
-    const created_at = nowIso();
-    let wt: Awaited<ReturnType<typeof createWorktree>> | null = null;
-    if (worktree === true) {
-      try {
-        wt = await createWorktree(project.path, id);
-      } catch (e) {
-        return reply.code(400).send({ error: e instanceof WorktreeError ? e.message : "could not create the worktree" });
-      }
-      logEvent(db, "session.worktree.create", (req as { device?: Device }).device?.id ?? null, `${id}:${wt.branch}`);
-    }
-    if (kind === "terminal") await tmux.createSession(id, project.path, agent?.command); // claude spawns on WS attach
-    // initialPrompt (proposal 15): only meaningful for claude — primed as the first
-    // turn when the SDK starts on attach, so create-and-prime is atomic (no race).
-    const initial = kind === "claude" && typeof initialPrompt === "string" && initialPrompt.trim() ? initialPrompt : null;
-    // Model is only meaningful for claude sessions (ADR 0007). Any string is
-    // accepted — the gateway rejects unknown ids at runtime (no coupling to /models).
-    const sessionModel = kind === "claude" && typeof model === "string" && model.trim() ? model.trim() : null;
-    const sessionTitle = title ?? agent?.label ?? null;
-    db.prepare(
-      "INSERT INTO sessions (id, project_id, kind, title, status, created_at, initial_prompt, model, mode, worktree_path, worktree_branch, base_ref) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-    ).run(id, project_id, kind, sessionTitle, "live", created_at, initial, sessionModel, mode ? parseMode(mode) : null, wt?.path ?? null, wt?.branch ?? null, wt?.baseRef ?? null);
-    logEvent(db, "session.create", (req as { device?: Device }).device?.id ?? null, agent ? `${id} preset:${preset}` : id);
-
-    return reply.code(201).send({
-      id, project_id, kind, title: sessionTitle, status: "live", created_at, model: sessionModel,
-      worktree_branch: wt?.branch ?? null,
-    });
+    const res = await createSession(db, tmux, { project_id, kind, title, initialPrompt, model, preset, mode, worktree: worktree === true, agent }, (req as { device?: Device }).device?.id ?? null);
+    if (!res.ok) return reply.code(res.status).send({ error: res.error });
+    return reply.code(201).send(res.body);
   });
 
   // List sessions (dashboard), optionally by project. Status reconciled so dead

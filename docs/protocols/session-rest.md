@@ -57,6 +57,24 @@ reached over the tailnet via `tailscale serve` (ADR 0005). Base:
 | `PUT`  | `/notes/:id` | Partial `{text?, done?}` → the updated note |
 | `DELETE` | `/notes/:id` | Delete a note. `204`, idempotent |
 
+### Swarm tasks
+
+[Proposal 65](../proposals/65-swarm-tasks-and-leases.md). Bearer-gated, shaped like notes. A task has
+`{id, project_id, title, body, scope[], deps[], state, session_id, created_at, updated_at}`;
+`state` is `ready | running | review | done`.
+
+| Method | Path | Notes |
+|--------|------|-------|
+| `GET`  | `/projects/:id/tasks` | The project's tasks, oldest first; `404` unknown project |
+| `POST` | `/projects/:id/tasks` | `{title, body?, scope?, deps?}` -> `201` task in `ready`. Title 1-200 chars, body <= 20000, `deps` are task ids of this project. `scope` is normalised (repo-relative prefixes; `..`, leading `/`, `.git` refused; <= 50 entries of <= 512 chars); `400` on any violation |
+| `PUT`  | `/tasks/:id` | Partial `{title?, body?, scope?, deps?, state?}`. Fields only while `ready` (`409` otherwise). `state` may be set to `ready` (from any state; clears `session_id`, lifting the lease) or `done` (from `review` only, else `409`) |
+| `DELETE` | `/tasks/:id` | `204`, idempotent |
+| `POST` | `/tasks/:id/dispatch` | Creates a worktree Claude session (same path as `POST /sessions`, so caps apply), sets the task `running`, and starts the first turn server-side with no client attached. -> `{task, session_id}`. `409` with the blocker named: task not `ready`, a dependency not `done`, an overlapping `running`/`review` task, or `VIBE_SWARM_MAX` (default 3) running tasks. Session-creation failures pass through (`429`, `507`, `400`) and leave the task `ready` |
+
+Audit kinds: `task.create`, `task.update`, `task.delete`, `task.dispatch` (REST); `task.claim`,
+`task.complete`, `lease.deny` (sessions). Peer tools for the same list are in
+[proposal 30](../proposals/30-session-peer-tools.md#swarm-task-tools-proposal-65).
+
 The byte/event channels stay on WS, unchanged: `WS /pty/:id` (terminal,
 [pty-ws.md](./pty-ws.md)), `WS /session/:id` (claude, Agent SDK).
 

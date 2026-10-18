@@ -101,13 +101,14 @@ export function upsertProjects(db: DB, scanned: Project[]): unknown[] {
        last_active = excluded.last_active`,
   );
   // Rows the scan no longer finds (dir deleted, or not a project any more) go —
-  // unless sessions, project prompts or notes hang off them: those cascade-delete
+  // unless sessions, project prompts, notes or tasks hang off them: those cascade-delete
   // with the project, so such rows stay listed. Callers always pass a FULL root scan.
   const prune = db.prepare(
     `DELETE FROM projects WHERE path = ?
        AND NOT EXISTS (SELECT 1 FROM sessions WHERE project_id = projects.id)
        AND NOT EXISTS (SELECT 1 FROM prompts WHERE project_id = projects.id)
-       AND NOT EXISTS (SELECT 1 FROM notes WHERE project_id = projects.id)`,
+       AND NOT EXISTS (SELECT 1 FROM notes WHERE project_id = projects.id)
+       AND NOT EXISTS (SELECT 1 FROM tasks WHERE project_id = projects.id)`,
   );
   const tx = db.transaction((rows: Project[]) => {
     for (const p of rows) {
