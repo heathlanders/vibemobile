@@ -125,6 +125,20 @@ CREATE TABLE IF NOT EXISTS notes (     -- per-project notes / TODOs (proposal 31
 );
 CREATE INDEX IF NOT EXISTS idx_notes_project ON notes(project_id);
 
+CREATE TABLE IF NOT EXISTS tasks (     -- swarm tasks + file leases (proposal 65)
+  id          TEXT PRIMARY KEY,
+  project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  title       TEXT NOT NULL,
+  body        TEXT NOT NULL DEFAULT '',   -- goal + acceptance criteria (Markdown)
+  scope       TEXT NOT NULL DEFAULT '[]', -- JSON array of repo-relative path prefixes
+  deps        TEXT NOT NULL DEFAULT '[]', -- JSON array of task ids
+  state       TEXT NOT NULL DEFAULT 'ready', -- ready | running | review | done
+  session_id  TEXT,                       -- the session holding it (running|review)
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
+
 CREATE TABLE IF NOT EXISTS usage_events ( -- token spend per model per turn (spend.ts)
   id            TEXT PRIMARY KEY,
   session_id    TEXT,                 -- no FK: spend history outlives deleted sessions

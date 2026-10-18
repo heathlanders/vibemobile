@@ -33,6 +33,7 @@ import { autoScopeDirs, fileToolInScope } from "./file-scope.js";
 import { PermissionGate } from "./permission-gate.js";
 import { toolResultImages } from "./attachments.js";
 import { notifyDevices, type PushType } from "./push.js";
+import { leasedToolPath, leaseBlocker } from "./tasks.js";
 import { currentTitle, refineTitle, titleOnFirstUserTurn } from "./titler.js";
 import { DEFAULT_MODE, SESSION_MODES, type EngineSession, type RewindResult, type SessionMode } from "./engine.js";
 import { TurnStatus } from "./turn-status.js";
@@ -570,6 +571,18 @@ export class ClaudeSession implements EngineSession {
     // ExitPlanMode is the plan's approval step (proposal 25): it must reach the
     // phone even with auto-allow on, or a plan would approve itself.
     if (toolName === "ExitPlanMode") return this.exitPlan(input, opts?.toolUseID);
+    // File leases (proposal 65): another session's running|review task covering this
+    // path denies the write. Advisory, Bash is not checked; before the gate so a lease
+    // never costs a phone approval.
+    const rel = leasedToolPath(toolName, input, this.cwd);
+    const lease = rel ? leaseBlocker(this.db, this.id, rel) : null;
+    if (rel && lease) {
+      logEvent(this.db, "lease.deny", null, `${this.id}:${rel}`);
+      return Promise.resolve({
+        behavior: "deny",
+        message: `${rel} is leased by task '${lease.title}' (session ${lease.session_id ?? "starting"}). Pick other files, or ask that session with send_message.`,
+      });
+    }
     // allow MUST echo updatedInput (SDK runtime schema — the gate returns it).
     return this.gate.request(toolName, input, opts);
   };

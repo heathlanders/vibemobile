@@ -19,6 +19,8 @@ export type PushType =
   | "permission"
   | "question"
   | "done"
+  // A swarm task reached review (tasks.ts, proposal 65): sessionId is the task's session.
+  | "task_review"
   // A CLI session outside the daemon (hook.ts, ADR 0014): answered in its terminal.
   | "cli_permission"
   | "cli_question"
