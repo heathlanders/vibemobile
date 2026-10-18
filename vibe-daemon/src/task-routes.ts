@@ -9,7 +9,7 @@ import type { Tmux } from "./tmux.js";
 import { logEvent, type Device } from "./auth.js";
 import { createSession } from "./sessions.js";
 import {
-  COLS, MAX_BODY_CHARS, MAX_DEPS, MAX_TITLE_CHARS, bindSession, getTask, normalizeScope, releaseTask,
+  COLS, MAX_BODY_CHARS, MAX_DEPS, MAX_TITLE_CHARS, bindSession, broadcastTaskDone, getTask, normalizeScope, releaseTask,
   reserveTask, taskPrompt, toTask,
 } from "./tasks.js";
 
@@ -21,7 +21,7 @@ export function registerTaskRoutes(
   app: FastifyInstance,
   db: DB,
   tmux: Tmux,
-  deps: { start: (row: Record<string, unknown>) => void },
+  deps: { start: (row: Record<string, unknown>) => void; registry: Map<string, { pushUser(text: string): void }> },
 ): void {
   const device = (req: unknown) => (req as { device?: Device }).device?.id ?? null;
 
@@ -127,7 +127,9 @@ export function registerTaskRoutes(
       title, body, JSON.stringify(scope), JSON.stringify(depIds), state, sessionId, nowIso(), id,
     );
     logEvent(db, "task.update", device(req), b.state !== undefined ? `${id}:${state}` : id);
-    return getTask(db, id);
+    const updated = getTask(db, id)!;
+    if (t.state === "review" && state === "done") void broadcastTaskDone(db, deps.registry, updated).catch(() => {});
+    return updated;
   });
 
   app.delete("/tasks/:id", async (req, reply) => {

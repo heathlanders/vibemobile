@@ -206,6 +206,37 @@ test("dispatch creates a worktree session and starts the first turn with no clie
   registry.get(session_id)?.stop();
 });
 
+test("done broadcasts the changed files to the project's other live sessions (S4)", async () => {
+  const { db, registry, sdk, mk, dispatch, app, auth } = await setup();
+  const t = await mk("Add widget", { scope: ["src/w"] });
+  const { session_id } = (await dispatch(t.id)).json();
+  const wt = (db.prepare("SELECT worktree_path FROM sessions WHERE id = ?").get(session_id) as any).worktree_path;
+  mkdirSync(join(wt, "src/w"), { recursive: true });
+  writeFileSync(join(wt, "src/w/x.ts"), "x\n");
+  git(wt, "add", "-A");
+  git(wt, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "w");
+
+  const got: Record<string, string[]> = { s2: [], s3: [] };
+  for (const id of ["s2", "s3"]) registry.set(id, { pushUser: (x: string) => got[id].push(x) } as any);
+  addSession(db, "s2", null);
+  db.prepare("INSERT INTO projects (id, path, name, type) VALUES (?,?,?,?)").run("p2", "/x", "q", "unknown");
+  addSession(db, "s3", null, "p2");
+
+  db.prepare("UPDATE tasks SET state='review' WHERE id=?").run(t.id);
+  const r = await app.inject({ method: "PUT", url: `/tasks/${t.id}`, headers: auth, payload: { state: "done" } });
+  assert.equal(r.json().state, "done");
+  await waitFor(() => got.s2.length === 1);
+  assert.match(got.s2[0], /not typed by the user/);
+  assert.match(got.s2[0], /Add widget/);
+  assert.match(got.s2[0], /src\/w\/x\.ts/);
+  assert.match(got.s2[0], /rebase|pull/);
+  assert.equal(got.s3.length, 0, "other project not told");
+  await sleep(50);
+  assert.ok(!sdk.calls.flatMap((c) => c.prompts).some((p) => /was merged/.test(p)), "owner not told");
+  assert.ok(db.prepare("SELECT 1 FROM events WHERE kind='task.broadcast'").get());
+  registry.get(session_id)?.stop();
+});
+
 test("dispatch failure (session cap) releases the task back to ready", async () => {
   const { db, mk, dispatch } = await setup();
   const prev = process.env.VIBE_MAX_CLAUDE;
