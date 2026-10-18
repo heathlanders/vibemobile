@@ -36,5 +36,6 @@ Status: `Accepted` until superseded.
 | 0029 | [Pair a new device from an already-paired one](0029-pair-from-a-paired-device.md) | Accepted |
 | 0030 | [Project file writes and transfer](0030-project-file-writes.md) | Accepted |
 | 0031 | [Always-apply prompts extend session rules](0031-always-apply-prompts.md) | Accepted |
+| 0032 | [Swarm merge queue: rebase, test, fast-forward](0032-swarm-merge-queue.md) | Proposed |
 
 New decision? Copy the shape of an existing ADR, bump the number, add a row.

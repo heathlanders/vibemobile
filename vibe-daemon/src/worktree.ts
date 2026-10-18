@@ -8,7 +8,7 @@
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { gitRun } from "./git-run.js";
+import { gitRun, UnsafeGitConfigError } from "./git-run.js";
 import { canonical, inside } from "./file-scope.js";
 
 export const WORKTREE_DIR = ".vibe-worktrees";
@@ -50,6 +50,7 @@ export async function createWorktree(projectPath: string, sessionId: string): Pr
     baseRef = (await gitRun(projectPath, ["rev-parse", "--verify", "HEAD"])).stdout.trim();
   } catch (e) {
     if (e instanceof WorktreeError) throw e;
+    if (e instanceof UnsafeGitConfigError) throw new WorktreeError(e.message);
     throw new WorktreeError("project is not a git repository with at least one commit");
   }
 
@@ -57,9 +58,19 @@ export async function createWorktree(projectPath: string, sessionId: string): Pr
   try {
     const { stdout } = await gitRun(projectPath, ["rev-parse", "--git-path", "info/exclude"]);
     excludeWorktreeDir(projectPath, stdout.trim());
-    await gitRun(projectPath, ["worktree", "add", "--no-track", "-b", branch, "--", path, "HEAD"], { timeout: SLOW_MS });
-  } catch {
-    throw new WorktreeError("could not create the worktree");
+    // --no-checkout, then check out from INSIDE the worktree: gitRun's driver check must
+    // see the worktree's own includes (includeIf gitdir: matches differently there).
+    await gitRun(projectPath, ["worktree", "add", "--no-checkout", "--no-track", "-b", branch, "--", path, "HEAD"], { timeout: SLOW_MS });
+    try {
+      await gitRun(path, ["reset", "--hard", "--quiet"], { timeout: SLOW_MS });
+    } catch (e) {
+      // Ours and just made: nothing in it to lose.
+      await gitRun(projectPath, ["worktree", "remove", "--force", "--", path], { timeout: SLOW_MS }).catch(() => {});
+      await gitRun(projectPath, ["branch", "-D", "--", branch]).catch(() => {});
+      throw e;
+    }
+  } catch (e) {
+    throw new WorktreeError(e instanceof UnsafeGitConfigError ? e.message : "could not create the worktree");
   }
   return { path, branch, baseRef };
 }
@@ -80,7 +91,7 @@ export async function removeWorktree(
       await gitRun(projectPath, ["worktree", "prune"]);
       return { kept: false };
     }
-    const dirty = (await gitRun(wt.path, ["status", "--porcelain"])).stdout.trim().length > 0;
+    const dirty = (await gitRun(wt.path, ["status", "--porcelain", "--ignore-submodules=all"])).stdout.trim().length > 0;
     if (dirty) return { kept: true, reason: "dirty" };
     const ahead = Number((await gitRun(projectPath, ["rev-list", "--count", `${wt.baseRef}..${wt.branch}`])).stdout.trim());
     if (!(ahead === 0)) return { kept: true, reason: "commits" };

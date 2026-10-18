@@ -81,7 +81,7 @@ export function parseStatus(stdout: string): GitStatus {
 
 export async function gitStatus(cwd: string): Promise<GitStatus> {
   try {
-    const { stdout } = await gitRun(cwd, ["status", "--porcelain=v1", "-b"]);
+    const { stdout } = await gitRun(cwd, ["status", "--porcelain=v1", "-b", "--ignore-submodules=all"]);
     return parseStatus(stdout);
   } catch {
     // Not a repo, git missing, or the call timed out — all "no status to show".

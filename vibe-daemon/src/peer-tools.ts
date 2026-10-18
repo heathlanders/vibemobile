@@ -18,6 +18,7 @@ import { z } from "zod";
 import type { DB } from "./db.js";
 import { logEvent } from "./auth.js";
 import type { EngineSession, SessionMode } from "./engine.js";
+import { claimTask, completeTask, listTasksText } from "./tasks.js";
 
 export const PEER_SERVER = "vibe-peers";
 
@@ -170,6 +171,11 @@ export function resolveNote(d: PeerDeps, noteId: string): Result {
   return ok("Marked done.");
 }
 
+// Swarm tasks (proposal 65). claim_task acts on the project's shared task list, so like
+// send_message it is refused in plan mode; the DB-level rules are in tasks.ts.
+export const claimTaskTool = (d: PeerDeps, id: string): Result =>
+  d.getMode() === "plan" ? fail("claim_task is disabled in plan mode") : claimTask(d.db, d.selfId, id);
+
 const asTool = (r: Result) => ({ content: [{ type: "text" as const, text: r.ok ? r.text : r.error }], isError: !r.ok });
 
 export function createPeerServer(d: PeerDeps) {
@@ -203,6 +209,24 @@ export function createPeerServer(d: PeerDeps) {
         "Mark one of this project's Notes done, once its idea is captured in the project's docs (a Proposal or Roadmap Milestone). The user can still see and untick it in the app.",
         { note_id: z.string().describe("Note id from list_notes") },
         async (a) => asTool(resolveNote(d, a.note_id)),
+      ),
+      tool(
+        "list_tasks",
+        "List this project's swarm tasks with state, scope (files each one may change) and deps. READY marks tasks you could claim now.",
+        {},
+        async () => asTool(listTasksText(d.db, d.selfId)),
+      ),
+      tool(
+        "claim_task",
+        "Claim a ready task for this session (needs a worktree session). You then hold a lease on its scope: other sessions cannot edit those files until it is done.",
+        { id: z.string().describe("Task id from list_tasks") },
+        async (a) => asTool(claimTaskTool(d, a.id)),
+      ),
+      tool(
+        "complete_task",
+        "Finish your claimed task: it moves to review and the user is notified. Only the session that owns the task can call this.",
+        { id: z.string().describe("Task id"), summary: z.string().describe("What you did, for the reviewer") },
+        async (a) => asTool(completeTask(d.db, d.selfId, a.id, a.summary)),
       ),
     ],
   });
