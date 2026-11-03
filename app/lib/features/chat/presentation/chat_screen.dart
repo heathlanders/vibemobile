@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:desktop_drop/desktop_drop.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
@@ -58,6 +60,7 @@ import 'ci_sheet.dart';
 import 'effort_sheet.dart';
 import '../../editor/presentation/editor_opener.dart';
 import '../../files/data/project_files_api.dart';
+import '../../files/presentation/upload_to_root.dart';
 import 'file_browser_screen.dart';
 import 'markdown_text.dart';
 import 'mcp_sheet.dart';
@@ -940,28 +943,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   }
 
   void _pickSource() {
-    if (!isMobile) {
-      _attach(ImageSource.gallery); // desktop: file dialog, no camera
-      return;
-    }
     showModalBottomSheet<void>(
       context: context,
       builder: (ctx) => SafeArea(
         child: Wrap(children: [
           ListTile(
             leading: const Icon(Icons.photo_library_outlined),
-            title: const Text('Photo library'),
+            title: Text(isMobile ? 'Photo library' : 'Image'), // desktop: file dialog
             onTap: () {
               Navigator.pop(ctx);
               _attach(ImageSource.gallery);
             },
           ),
+          if (isMobile)
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Camera'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _attach(ImageSource.camera);
+              },
+            ),
           ListTile(
-            leading: const Icon(Icons.photo_camera_outlined),
-            title: const Text('Camera'),
+            leading: const Icon(Icons.upload_file_outlined),
+            title: const Text('File to project root'),
             onTap: () {
               Navigator.pop(ctx);
-              _attach(ImageSource.camera);
+              _pickFiles();
             },
           ),
         ]),
@@ -1035,12 +1043,41 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         child: card ?? const SizedBox(width: double.infinity),
       );
 
-  /// Desktop drag-drop attach: image files only (the daemon sniffs and
-  /// enforces type + size; this just skips obvious non-images).
+  /// Desktop drag-drop: images attach to the next message (the daemon sniffs and
+  /// enforces type + size; this just routes by extension); any other file is
+  /// uploaded into the session's project root. Folders are skipped.
   Future<void> _onDrop(DropDoneDetails d) async {
     const exts = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
-    for (final f in d.files.where((f) => exts.any(f.name.toLowerCase().endsWith))) {
-      await _uploadBytes(await f.readAsBytes());
+    final others = <UploadSource>[];
+    for (final f in d.files) {
+      if (exts.any(f.name.toLowerCase().endsWith)) {
+        await _uploadBytes(await f.readAsBytes());
+      } else if (FileSystemEntity.isFileSync(f.path)) {
+        others.add(UploadSource.file(File(f.path), name: f.name));
+      }
+    }
+    await _uploadFiles(others);
+  }
+
+  /// Any file type from the system picker → the session's project root.
+  Future<void> _pickFiles() async {
+    final List<UploadSource> picked;
+    try {
+      final files = await FilePicker.pickFiles();
+      picked = [for (final f in files) UploadSource(name: f.name, length: await f.length() ?? 0, open: f.readAsByteStream)];
+    } catch (_) {
+      return; // permission denied / cancelled
+    }
+    await _uploadFiles(picked);
+  }
+
+  Future<void> _uploadFiles(List<UploadSource> sources) async {
+    if (sources.isEmpty) return;
+    setState(() => _uploading = true);
+    try {
+      await uploadToRoot(context, ProjectFilesApi.session(dioFor(widget.creds), widget.session.id), sources);
+    } finally {
+      if (mounted) setState(() => _uploading = false);
     }
   }
 
@@ -2112,7 +2149,7 @@ class _Composer extends StatelessWidget {
               ),
             Row(children: [
               IconButton(
-                tooltip: 'Attach image',
+                tooltip: 'Attach image or file',
                 icon: uploading
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.add_photo_alternate_outlined),

@@ -44,6 +44,15 @@ editor (proposal 60) builds on: today every project-file route is read-only and 
 - **Upload here:** folder action, `file_picker` (new dep); desktop also drag-and-drop via
   `desktop_drop`. Progress from `onSendProgress`; 409 → "Overwrite?" prompt.
 
+### Follow-up (2026-11-03): files from chat and the share sheet
+Same `PUT …/files/raw` route, session scope, always the root (worktree if the session has one).
+- Chat desktop drop: images still attach to the next message; any other file uploads to the root.
+- Chat attach button opens a sheet on desktop too: Image / (Camera, mobile) / File to project root
+  (`file_picker`, any type).
+- Android share target widened `image/*` → `*/*`: images attach as before, file/video shares are
+  uploaded into the picked session's root before its chat opens; text/url shares ignored.
+- Shared helper `features/files/presentation/upload_to_root.dart` (overwrite prompt on 409).
+
 ## Security
 Adds the first general **write** surface over project files. Trust model: a paired device can
 already run a shell and Claude with write access in these projects, so writes add no new

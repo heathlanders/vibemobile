@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -6,17 +7,21 @@ import '../../../core/providers.dart';
 import '../../../core/spacing.dart';
 import '../../../core/token_store.dart';
 import '../../../core/widgets.dart';
+import '../../files/data/project_files_api.dart';
+import '../../files/presentation/upload_to_root.dart';
 import '../../sessions/data/session_api.dart';
 import '../../sessions/domain/session.dart';
 import 'chat_screen.dart';
 
 /// Landing for an image shared into the app via the OS share sheet (proposal 16).
 /// Pick a live Claude session or spin up a new one in a project; the shared
-/// [imageBytes] are then pre-attached to that chat's composer.
+/// [imageBytes] are then pre-attached to that chat's composer, and any other shared
+/// [files] are uploaded into that session's project root first.
 class ShareImageScreen extends StatefulWidget {
-  const ShareImageScreen({super.key, required this.creds, required this.imageBytes});
+  const ShareImageScreen({super.key, required this.creds, required this.imageBytes, this.files = const []});
   final Creds creds;
   final List<Uint8List> imageBytes;
+  final List<File> files;
 
   @override
   State<ShareImageScreen> createState() => _ShareImageScreenState();
@@ -35,7 +40,15 @@ class _ShareImageScreenState extends State<ShareImageScreen> {
     return (liveClaude, projects, names);
   }
 
-  Future<void> _openExisting(Session s) => _open(s);
+  Future<void> _openExisting(Session s) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await _open(s);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   Future<void> _createIn(Project p) async {
     if (_busy) return;
@@ -52,6 +65,10 @@ class _ShareImageScreenState extends State<ShareImageScreen> {
 
   Future<void> _open(Session s) async {
     if (!mounted) return;
+    if (widget.files.isNotEmpty) {
+      await uploadToRoot(context, ProjectFilesApi.session(dioFor(widget.creds), s.id), [for (final f in widget.files) UploadSource.file(f)]);
+      if (!mounted) return;
+    }
     // pushReplacement: Back from chat shouldn't return to this picker.
     await Navigator.of(context).pushReplacement(
       sharedAxisRoute(ChatScreen(creds: widget.creds, session: s, initialImageBytes: widget.imageBytes)),
@@ -61,8 +78,12 @@ class _ShareImageScreenState extends State<ShareImageScreen> {
   @override
   Widget build(BuildContext context) {
     final n = widget.imageBytes.length;
+    final f = widget.files.length;
+    final title = f == 0
+        ? (n == 1 ? 'Share image to…' : 'Share $n images to…')
+        : (n + f == 1 ? 'Share file to…' : 'Share ${n + f} files to…');
     return Scaffold(
-      appBar: AppBar(title: Text(n == 1 ? 'Share image to…' : 'Share $n images to…')),
+      appBar: AppBar(title: Text(title)),
       body: FutureBuilder<(List<Session>, List<Project>, Map<String, String>)>(
         future: _future,
         builder: (context, snap) {

@@ -37,17 +37,18 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Share target: screenshot/photo → Share → VibeMobile (proposal 16).
-                 receive_sharing_intent delivers the shared image(s) to Dart. -->
+            <!-- Share target: screenshot/photo → Share → VibeMobile (proposal 16); any other
+                 file is uploaded into the chosen session's project root.
+                 receive_sharing_intent delivers the shared file(s) to Dart. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND"/>
                 <category android:name="android.intent.category.DEFAULT"/>
-                <data android:mimeType="image/*"/>
+                <data android:mimeType="*/*"/>
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND_MULTIPLE"/>
                 <category android:name="android.intent.category.DEFAULT"/>
-                <data android:mimeType="image/*"/>
+                <data android:mimeType="*/*"/>
             </intent-filter>
         </activity>
         <!-- Notification Allow/Deny/option buttons (ADR 0013): the plugin's receiver
