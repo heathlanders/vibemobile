@@ -91,28 +91,36 @@ class _VibeMobileAppState extends ConsumerState<VibeMobileApp> {
     _navKey.currentState?.push(sharedAxisRoute(ChatScreen(creds: creds, session: s)));
   }
 
-  /// Route a shared image into a session picker. Images only; non-image shares
-  /// (text/url) are ignored. Drops the share with a nudge if unpaired — a share
-  /// can't attach to a session without creds.
+  /// Route a share into a session picker: images attach to the chat, other files
+  /// (file/video) upload into the session's project root; text/url shares are
+  /// ignored. Drops the share with a nudge if unpaired — a share can't reach a
+  /// session without creds.
   Future<void> _handleShare(List<SharedMediaFile> media) async {
-    final imageFiles = media.where((m) => m.type == SharedMediaType.image);
     final bytes = <Uint8List>[];
-    for (final m in imageFiles) {
-      try {
-        bytes.add(await File(m.path).readAsBytes());
-      } catch (_) {/* temp file vanished — skip it */}
+    final files = <File>[];
+    for (final m in media) {
+      if (m.type == SharedMediaType.text || m.type == SharedMediaType.url) continue;
+      final f = File(m.path);
+      if (!f.existsSync()) continue; // temp file vanished — skip it
+      if (m.type == SharedMediaType.image) {
+        try {
+          bytes.add(await f.readAsBytes());
+        } catch (_) {}
+      } else {
+        files.add(f);
+      }
     }
-    if (bytes.isEmpty) return;
+    if (bytes.isEmpty && files.isEmpty) return;
 
     final creds = await ref.read(tokenStoreProvider).read();
     if (creds == null) {
       _messengerKey.currentState?.showSnackBar(
-        const SnackBar(content: Text('Pair VibeMobile first to share images.')),
+        const SnackBar(content: Text('Pair VibeMobile first to share files.')),
       );
       return;
     }
     _navKey.currentState?.push(
-      sharedAxisRoute(ShareImageScreen(creds: creds, imageBytes: bytes)),
+      sharedAxisRoute(ShareImageScreen(creds: creds, imageBytes: bytes, files: files)),
     );
   }
 
