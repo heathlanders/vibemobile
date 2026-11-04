@@ -132,6 +132,7 @@ class _PendingImage {
 
 class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObserver {
   late final ChatSessionController _controller;
+  late bool _continueAfterLimit = widget.session.continueAfterLimit; // proposal 67
   late final ChatControllerPool _pool; // read in initState: ref is unsafe in dispose
   late final AttachmentApi _attachments;
   final _picker = ImagePicker();
@@ -630,6 +631,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
 
   /// Continue this conversation on another model (ADR 0016): a new session
   /// whose first turn carries the recent transcript. This one keeps running.
+  /// "Continue after usage limit" (proposal 67): opt this session in or out, daemon-side.
+  Future<void> _toggleContinue() async {
+    final on = !_continueAfterLimit;
+    try {
+      final s = await SessionApi(dioFor(widget.creds)).setContinueAfterLimit(widget.session.id, on);
+      if (mounted) setState(() => _continueAfterLimit = s.continueAfterLimit);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not update: $e')));
+    }
+  }
+
   Future<void> _pickEffort() async {
     final picked = await showEffortSheet(context, current: _controller.effort, levels: _controller.effortLevels);
     if (picked == null || !mounted) return; // dismissed
@@ -1167,6 +1179,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
               if (v == 'handoff') _handoff();
               if (v == 'switch') _switchModel();
               if (v == 'effort') _pickEffort();
+              if (v == 'continue') _toggleContinue();
               if (v == 'mcp') showMcpSheet(context, _controller);
               if (v == 'ci') showCiSheet(context, creds: widget.creds, sessionId: widget.session.id);
               if (v == 'files') _browseFiles();
@@ -1187,6 +1200,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
               if (_controller.isClaudeEngine) const PopupMenuItem(value: 'files', child: Text('Browse files…')),
               if (_controller.effortLevels.isNotEmpty)
                 PopupMenuItem(value: 'effort', child: Text('Effort… (${_controller.effort ?? 'default'})')),
+              if (_controller.isClaudeEngine)
+                CheckedPopupMenuItem(
+                  value: 'continue',
+                  checked: _continueAfterLimit,
+                  child: const _ContinueItem(),
+                ),
               const PopupMenuItem(value: 'handoff', child: Text('Hand off to another model…')),
               const PopupMenuItem(value: 'tokens', child: Text('Token usage')),
             ],
@@ -1213,6 +1232,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                     : _Banner(key: ValueKey(_controller.state), state: _controller.state),
               ),
               if (_controller.external != null) _ExternalBanner(run: _controller.external!),
+              if (_controller.limitWaiting) _LimitBanner(resetsAt: _controller.limitResetsAt, continueAt: _controller.limitContinueAt),
               if (_controller.offline && _controller.messages.isNotEmpty)
                 Container(
                   width: double.infinity,
@@ -2257,6 +2277,56 @@ class _Banner extends StatelessWidget {
         if (spin) const SizedBox(width: 8),
         Text(text),
       ]),
+    );
+  }
+}
+
+/// Menu entry text for the usage-limit opt-in (proposal 67).
+class _ContinueItem extends StatelessWidget {
+  const _ContinueItem();
+
+  @override
+  Widget build(BuildContext context) => const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Continue after usage limit'),
+          Text(
+            'Resumes automatically when the 5-hour limit resets (up to 3 times). '
+            'Approvals still wait for you unless the session is in auto mode.',
+            style: TextStyle(fontSize: 12),
+            softWrap: true,
+          ),
+        ],
+      );
+}
+
+/// "Usage limit hit — continues at HH:MM" (proposal 67); resets-only when it will not continue.
+class _LimitBanner extends StatelessWidget {
+  const _LimitBanner({required this.resetsAt, required this.continueAt});
+  final DateTime? resetsAt;
+  final DateTime? continueAt;
+
+  static String _hhmm(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+  @override
+  Widget build(BuildContext context) {
+    final text = continueAt != null
+        ? 'Usage limit hit — continues at ${_hhmm(continueAt!)}'
+        : resetsAt != null
+            ? 'Usage limit hit — resets at ${_hhmm(resetsAt!)}'
+            : 'Usage limit hit';
+    return Container(
+      width: double.infinity,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      padding: const EdgeInsets.symmetric(vertical: Spacing.xs, horizontal: Spacing.md),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.hourglass_bottom, size: 14),
+          const SizedBox(width: 6),
+          Flexible(child: Text(text, textAlign: TextAlign.center)),
+        ],
+      ),
     );
   }
 }

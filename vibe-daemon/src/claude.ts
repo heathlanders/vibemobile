@@ -27,6 +27,7 @@ import { compactNotice, summarizeContext, type ContextFrame } from "./context.js
 import { publicCommands, skillNamesFrom, type CommandInfo } from "./commands.js";
 import { parseMcpAction, summarizeMcp } from "./mcp.js";
 import { getUsage, ingestRateLimit } from "./usage.js";
+import { planContinuation } from "./limit.js";
 import { cumulativeCostDelta, recordCumulative } from "./spend.js";
 import { capHistory } from "./history.js";
 import { autoScopeDirs, fileToolInScope } from "./file-scope.js";
@@ -41,6 +42,9 @@ import { createPeerServer, PEER_SERVER } from "./peer-tools.js";
 
 // Loose SDK shapes — the SDK's types are large; the spike already casts (any).
 type SdkMsg = any;
+// First rejected rate-limit event seen by this process is logged raw, with the result after it (proposal 67 spike).
+let limitCaptured = false;
+let captureNextResult = false;
 type QueryFn = (params: { prompt: AsyncIterable<any>; options: any }) => AsyncGenerator<SdkMsg> & {
   interrupt?: () => Promise<void>;
 };
@@ -735,6 +739,7 @@ export class ClaudeSession implements EngineSession {
         break;
       case "rate_limit_event":
         ingestRateLimit(msg.rate_limit_info);
+        this.onRateLimit(msg.rate_limit_info);
         break;
       case "stream_event": {
         const ev = msg.event;
@@ -815,6 +820,10 @@ export class ClaudeSession implements EngineSession {
             cost: u?.costUSD,
           });
         }
+        if (captureNextResult) {
+          captureNextResult = false;
+          console.log("[limit-capture] result", JSON.stringify({ subtype: msg.subtype, is_error: msg.is_error, result: msg.result, errors: msg.errors }));
+        }
         this.send({ t: "result", subtype: msg.subtype });
         this.status.end();
         if (this.sockets.size === 0) this.notify("done");
@@ -825,6 +834,30 @@ export class ClaudeSession implements EngineSession {
         break;
       }
     }
+  }
+
+  // ---- usage limit (proposal 67) -------------------------------------------
+
+  // A rejected rate-limit event: tell attached clients when the window resets and, when this
+  // session opted in, store one continuation for limit.ts's tick. Structured fields only.
+  private onRateLimit(info: any): void {
+    if (info?.status !== "rejected") return;
+    if (!limitCaptured) {
+      limitCaptured = captureNextResult = true; // spike capture: what a real rejection looks like
+      console.log("[limit-capture] rate_limit_info", JSON.stringify(info));
+    }
+    const row = this.db.prepare("SELECT continue_after_limit, continue_at FROM sessions WHERE id = ?").get(this.id) as
+      | { continue_after_limit: number; continue_at: string | null }
+      | undefined;
+    const resetsAt = typeof info.resetsAt === "number" && isFinite(info.resetsAt) ? new Date(info.resetsAt * 1000).toISOString() : null;
+    const plan = planContinuation(info, row, Date.now());
+    const continueAt = plan ? (row?.continue_at ?? plan) : null; // a repeat event keeps the wait already stored
+    if (plan && !row?.continue_at) {
+      this.db.prepare("UPDATE sessions SET continue_at = ? WHERE id = ?").run(plan, this.id);
+      logEvent(this.db, "session.limit_paused", null, `${this.id}:${plan}`);
+      if (this.sockets.size === 0) this.notify("limit_paused");
+    }
+    this.send({ t: "limit_wait", resetsAt, continueAt });
   }
 
   // ---- helpers -------------------------------------------------------------

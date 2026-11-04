@@ -40,6 +40,22 @@ void main() {
     expect(c.pendingDialog, isNull);
   });
 
+  test('limit_wait shows the banner through the rejected turn and clears on the next output (proposal 67)', () {
+    final c = controller();
+    c.applyFrame({'t': 'limit_wait', 'resetsAt': '2026-11-04T05:00:00.000Z', 'continueAt': '2026-11-04T05:02:00.000Z'});
+    expect(c.limitWaiting, isTrue);
+    expect(c.limitContinueAt, isNotNull);
+    c.applyFrame({'t': 'assistant', 'text': 'limit reached'});
+    c.applyFrame({'t': 'result', 'subtype': 'success'});
+    expect(c.limitWaiting, isTrue, reason: 'the rejected turn itself must not clear it');
+    c.applyFrame({'t': 'assistant', 'text': 'back at it'});
+    expect(c.limitWaiting, isFalse);
+
+    c.applyFrame({'t': 'limit_wait', 'resetsAt': '2026-11-04T05:00:00.000Z', 'continueAt': null});
+    expect(c.limitContinueAt, isNull);
+    expect(c.limitResetsAt, isNotNull);
+  });
+
   test('tool_use adds a tool entry', () {
     final c = controller();
     c.applyFrame({'t': 'tool_use', 'id': 'tu1', 'name': 'Read', 'input': {'file': 'README'}});

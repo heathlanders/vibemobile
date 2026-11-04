@@ -108,6 +108,7 @@ class Session {
     this.claudeSessionId,
     this.externalStatus,
     this.worktreeBranch,
+    this.continueAfterLimit = false,
   });
 
   final String id;
@@ -139,6 +140,9 @@ class Session {
   /// `vibe/<id>` when this session runs in its own git worktree (ADR 0022).
   final String? worktreeBranch;
 
+  /// Opt-in (proposal 67): resume automatically when the 5-hour usage limit resets.
+  final bool continueAfterLimit;
+
   factory Session.fromJson(Map<String, dynamic> j) => Session(
         id: j['id'] as String,
         projectId: j['project_id'] as String,
@@ -152,6 +156,7 @@ class Session {
         claudeSessionId: j['claude_session_id'] as String?,
         externalStatus: (j['external'] as Map<String, dynamic>?)?['status'] as String?,
         worktreeBranch: j['worktree_branch'] as String?,
+        continueAfterLimit: j['continueAfterLimit'] == true,
       );
 
   bool get isLive => status == 'live';

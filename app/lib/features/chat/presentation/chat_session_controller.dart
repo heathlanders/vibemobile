@@ -60,6 +60,19 @@ class ChatSessionController extends ChangeNotifier with WidgetsBindingObserver {
   String? model;
   bool canSwitchModel = false;
 
+  /// Usage-limit wait (proposal 67): set by a `limit_wait` frame, cleared by the next turn's output.
+  /// [limitContinueAt] is null when the session will not continue by itself.
+  DateTime? limitResetsAt;
+  DateTime? limitContinueAt;
+  bool get limitWaiting => limitResetsAt != null || limitContinueAt != null;
+  bool _limitTurnOpen = false; // the rejected turn's own assistant/result must not clear the banner
+
+  void _clearLimit() {
+    limitResetsAt = null;
+    limitContinueAt = null;
+    _limitTurnOpen = false;
+  }
+
   /// Reasoning effort (proposal 39): the current level (`null` = the model's default) and
   /// the levels the daemon accepts. Empty [effortLevels] (native engine, old daemon) hides
   /// the menu entry.
@@ -273,6 +286,7 @@ class ChatSessionController extends ChangeNotifier with WidgetsBindingObserver {
         final i = messages.lastIndexWhere((m) => m.role == ChatRole.user && m.serverId == null);
         if (id != null && i >= 0) messages[i].serverId = id;
       case 'user_turn':
+        _clearLimit();
         // A user turn typed on another device (proposal 58) or on the PC — or our own
         // reply echoed back through the CLI's transcript (sendUser doesn't add it
         // locally while mirroring).
@@ -299,7 +313,12 @@ class ChatSessionController extends ChangeNotifier with WidgetsBindingObserver {
         } else if (thought.isNotEmpty) {
           messages.add(ChatMessage(role: ChatRole.thinking, text: thought));
         }
+      case 'limit_wait':
+        limitResetsAt = DateTime.tryParse(f['resetsAt'] as String? ?? '')?.toLocal();
+        limitContinueAt = DateTime.tryParse(f['continueAt'] as String? ?? '')?.toLocal();
+        _limitTurnOpen = true;
       case 'assistant':
+        if (!_limitTurnOpen) _clearLimit();
         final text = f['text'] as String? ?? '';
         if (_streaming != null) {
           _streaming!
@@ -371,6 +390,11 @@ class ChatSessionController extends ChangeNotifier with WidgetsBindingObserver {
         if (pendingPermission?.toolUseID == f['toolUseID']) pendingPermission = null;
         if (f['toolUseID'] is String) unawaited(PushService.cancelPrompt(f['toolUseID'] as String));
       case 'result':
+        if (_limitTurnOpen) {
+          _limitTurnOpen = false; // the rejected turn ending; the banner stays
+        } else {
+          _clearLimit();
+        }
         _streaming = null;
         _thinking = null;
         busy = false;
@@ -437,6 +461,7 @@ class ChatSessionController extends ChangeNotifier with WidgetsBindingObserver {
 
   void sendUser(String text, {List<String> images = const []}) {
     if (text.trim().isEmpty && images.isEmpty) return;
+    _clearLimit();
     // Mirroring: the turn comes back as `user_turn` once the CLI takes it.
     if (external == null) messages.add(ChatMessage(role: ChatRole.user, text: text, images: images));
     _socket?.sendUser(text, images: images);
