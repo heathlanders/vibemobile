@@ -125,4 +125,18 @@ void main() {
     expect(n.prompt, isFalse);
     expect(NotePayload.decode(n.payload)?.sessionId, '');
   });
+
+  test('limit pushes are content-free and open the session (proposal 67)', () {
+    final titles = {
+      'limit_paused': 'Paused at usage limit',
+      'limit_continued': 'Continued after limit reset',
+      'limit_gave_up': 'Stopped: continued 3 times',
+    };
+    titles.forEach((type, title) {
+      final n = buildNotes(type, 's1', {'title': 'fix build'}).single;
+      expect(n.title, title);
+      expect(n.prompt, isFalse);
+      expect(NotePayload.decode(n.payload)!.sessionId, 's1');
+    });
+  });
 }

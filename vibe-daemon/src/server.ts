@@ -9,6 +9,7 @@ import { startSystemMonitor } from "./system.js";
 import { startUsageNudger } from "./usage.js";
 import { startHookSocket } from "./hook.js";
 import { startScheduler } from "./schedule.js";
+import { startContinuer } from "./limit.js";
 import { purgeInternalTranscriptRows } from "./discover.js";
 import { recoverMergeQueue } from "./merge-queue.js";
 
@@ -29,5 +30,6 @@ startIdleReaper(registry, db); // evict detached, idle claude SDK subprocesses
 startSystemMonitor(db); // low memory/disk → phone push (ADR 0019)
 startUsageNudger(db); // plan window resetting with capacity unused → phone push (ADR 0020)
 startScheduler(db, registry); // scheduled prompts (proposal 44)
+startContinuer(db, registry); // continue sessions after the usage limit resets (proposal 67)
 startHookSocket(db, registry); // CLI-session pushes via a Claude Code hook (ADR 0014)
 console.log(`[vibe-daemon] listening http://${HOST}:${PORT} (localhost only)`);

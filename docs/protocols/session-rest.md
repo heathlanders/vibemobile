@@ -34,7 +34,7 @@ reached over the tailnet via `tailscale serve` (ADR 0005). Base:
 | `GET`  | `/models` | Selectable models for the picker (ADR 0007) |
 | `GET`  | `/sessions?project_id=…` | List sessions (dashboard) |
 | `GET`  | `/sessions/:id` | One session's metadata + status |
-| `PATCH` | `/sessions/:id` | Rename / retag ([proposal 12](../proposals/12-session-rename-tags.md)). A `title` PATCH also pins it against the auto-titler |
+| `PATCH` | `/sessions/:id` | Rename / retag ([proposal 12](../proposals/12-session-rename-tags.md)). A `title` PATCH also pins it against the auto-titler. `continueAfterLimit: boolean` (Claude sessions only; audited as `session.continue_after_limit`) opts the session in to resuming after the 5-hour usage limit resets ([proposal 67](../proposals/67-continue-after-limit.md)); any change clears a stored wait and the in-a-row count. `GET /sessions` and `/sessions/:id` also return `continueAfterLimit` (bool) and `continueAt` (ISO\|null, the pending continuation). The daemon sends a fixed continue prompt at most 3 times in a row (a user turn resets the count), pushes `limit_paused` / `limit_continued` / `limit_gave_up`, and never changes the permission mode |
 | `DELETE` | `/sessions/:id` | End + remove a session |
 | `POST` | `/sessions/prune` | Bulk-delete a project's `stale` rows: `{project_id, older_than_days?}` → `{deleted}` (plus `worktreesKept` when a stale worktree session had work to keep, ADR 0022). See [External sessions](#external-sessions-discovery) |
 | `POST` | `/sessions/:id/attachments` | Upload an image blob (raw image body) for a `kind=claude` turn → `{attachmentId, mediaType}` |

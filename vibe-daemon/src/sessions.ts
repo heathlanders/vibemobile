@@ -23,6 +23,12 @@ import { diskGuard } from "./settings.js";
 import { sessionInQueue } from "./merge-queue.js";
 
 const nowIso = () => new Date().toISOString();
+// Raw row plus the camelCase limit fields the app reads (proposal 67).
+const withLimit = <T extends object>(row: T) => ({
+  ...row,
+  continueAfterLimit: (row as { continue_after_limit?: number }).continue_after_limit === 1,
+  continueAt: (row as { continue_at?: string | null }).continue_at ?? null,
+});
 // Exported for discover.ts, which mints rows for externally-started sessions
 // the same way a daemon-created one is minted.
 export const newId = () => "s_" + randomBytes(6).toString("hex");
@@ -227,7 +233,7 @@ export function registerSessionRoutes(app: FastifyInstance, db: DB, tmux: Tmux, 
       rows.map(async (r) => {
         const cli = r.claude_session_id ? running.get(r.claude_session_id) : undefined;
         const row = await reconcile(db, tmux, r);
-        return cli ? { ...row, external: { status: cli.status } } : row;
+        return withLimit(cli ? { ...row, external: { status: cli.status } } : row);
       }),
     );
   });
@@ -236,16 +242,16 @@ export function registerSessionRoutes(app: FastifyInstance, db: DB, tmux: Tmux, 
     const { id } = req.params as { id: string };
     const row = db.prepare("SELECT * FROM sessions WHERE id = ?").get(id) as SessionRow | undefined;
     if (!row) return reply.code(404).send({ error: "not found" });
-    return reconcile(db, tmux, row);
+    return withLimit(await reconcile(db, tmux, row));
   });
 
   // Edit a session's mutable fields: title and/or tags (proposal 12). Only the
   // keys present in the body change. 404 if it doesn't exist.
   app.patch("/sessions/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
-    const body = (req.body ?? {}) as { title?: string; tags?: string };
+    const body = (req.body ?? {}) as { title?: string; tags?: string; continueAfterLimit?: unknown };
     const sets: string[] = [];
-    const vals: (string | null)[] = [];
+    const vals: (string | number | null)[] = [];
     if ("title" in body) {
       // A manual rename pins the title: title_auto = 0 stops the auto-titler from
       // ever overwriting it (ADR 0009). Literal, so it takes no `vals` slot.
@@ -261,11 +267,22 @@ export function registerSessionRoutes(app: FastifyInstance, db: DB, tmux: Tmux, 
       sets.push("tags = ?");
       vals.push(tags.length ? [...new Set(tags)].join(",") : null);
     }
+    if ("continueAfterLimit" in body) {
+      // Opt in to continuing after the 5-hour usage limit (proposal 67): Claude sessions only.
+      if (typeof body.continueAfterLimit !== "boolean") return reply.code(400).send({ error: "continueAfterLimit must be a boolean" });
+      const kind = (db.prepare("SELECT kind FROM sessions WHERE id = ?").get(id) as { kind: string } | undefined)?.kind;
+      if (kind && kind !== "claude") return reply.code(400).send({ error: "continueAfterLimit is only for Claude sessions" });
+      // Turning it off (or on) drops any stored wait and starts the in-a-row count over.
+      sets.push("continue_after_limit = ?", "continue_at = NULL", "continue_count = 0");
+      vals.push(body.continueAfterLimit ? 1 : 0);
+    }
     if (!sets.length) return reply.code(400).send({ error: "nothing to update" });
     const info = db.prepare(`UPDATE sessions SET ${sets.join(", ")} WHERE id = ?`).run(...vals, id);
     if (info.changes === 0) return reply.code(404).send({ error: "not found" });
-    logEvent(db, "session.rename", (req as { device?: Device }).device?.id ?? null, id);
-    return db.prepare("SELECT * FROM sessions WHERE id = ?").get(id);
+    const deviceId = (req as { device?: Device }).device?.id ?? null;
+    if ("continueAfterLimit" in body) logEvent(db, "session.continue_after_limit", deviceId, `${id}:${body.continueAfterLimit ? "on" : "off"}`);
+    if ("title" in body || "tags" in body) logEvent(db, "session.rename", deviceId, id);
+    return withLimit(db.prepare("SELECT * FROM sessions WHERE id = ?").get(id) as object);
   });
 
   // Search a session's transcript (proposal 10). Case-insensitive LIKE over

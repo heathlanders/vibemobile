@@ -98,6 +98,26 @@ List<PushNote> buildNotes(String type, String sessionId, Map<String, dynamic> pe
     ];
   }
 
+  // Continue after the usage limit (proposal 67): content-free, tap opens the session.
+  final limit = switch (type) {
+    'limit_paused' => ('Paused at usage limit', 'It continues after the limit resets. Tap to open the session.'),
+    'limit_continued' => ('Continued after limit reset', '$name is working again. Tap to open the session.'),
+    'limit_gave_up' => ('Stopped: continued 3 times', '$name hit the limit again. Tap to open the session.'),
+    _ => null,
+  };
+  if (limit != null) {
+    return [
+      PushNote(
+        id: stableNoteId('$type:$sessionId'),
+        title: limit.$1,
+        body: limit.$2,
+        actions: const [],
+        payload: NotePayload(sessionId: sessionId, kind: 'done').encode(),
+        prompt: false,
+      ),
+    ];
+  }
+
   // Swarm merge queue (ADR 0032): content-free; the details are on the approval screen.
   if (type == 'merge_ready' || type == 'merge_bounced') {
     final ready = type == 'merge_ready';

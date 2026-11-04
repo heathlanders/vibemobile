@@ -341,6 +341,10 @@ function migrate(db: DB): void {
   if (!has("sessions", "target_branch")) db.exec("ALTER TABLE sessions ADD COLUMN target_branch TEXT");
   // Reasoning effort (proposal 39): 'low'|'medium'|'high'|'xhigh'|'max', null = the model's default.
   if (!has("sessions", "effort")) db.exec("ALTER TABLE sessions ADD COLUMN effort TEXT");
+  // Continue after the usage limit (proposal 67): opt-in, the stored wait, and the in-a-row count.
+  if (!has("sessions", "continue_after_limit")) db.exec("ALTER TABLE sessions ADD COLUMN continue_after_limit INTEGER NOT NULL DEFAULT 0");
+  if (!has("sessions", "continue_at")) db.exec("ALTER TABLE sessions ADD COLUMN continue_at TEXT");
+  if (!has("sessions", "continue_count")) db.exec("ALTER TABLE sessions ADD COLUMN continue_count INTEGER NOT NULL DEFAULT 0");
   // Prompt library usage (ADR 0018): "most used" sort.
   if (!has("prompts", "use_count")) db.exec("ALTER TABLE prompts ADD COLUMN use_count INTEGER NOT NULL DEFAULT 0");
   if (!has("prompts", "last_used_at")) db.exec("ALTER TABLE prompts ADD COLUMN last_used_at TEXT");

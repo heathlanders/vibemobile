@@ -31,7 +31,11 @@ export type PushType =
   // Box health (system.ts, ADR 0019): low memory/disk. sessionId is "".
   | "system_alert"
   // Plan usage (usage.ts, ADR 0020): a window resets soon with capacity unused. sessionId is "".
-  | "usage_reset";
+  | "usage_reset"
+  // Continue after the usage limit (limit.ts, proposal 67): sessionId is the paused session.
+  | "limit_paused"
+  | "limit_continued"
+  | "limit_gave_up";
 
 const credentialsPath = () =>
   process.env.VIBE_FCM_CREDENTIALS ?? join(homedir(), ".config", "vibe-daemon", "firebase-sa.json");

@@ -108,6 +108,13 @@ class SessionApi {
     return Session.fromJson(res.data!);
   }
 
+  /// Opt a Claude session in or out of continuing after the 5-hour usage limit (proposal 67).
+  Future<Session> setContinueAfterLimit(String sessionId, bool on) async {
+    final res = await _dio.patch<Map<String, dynamic>>('/sessions/$sessionId', data: {'continueAfterLimit': on});
+    if (res.statusCode != 200 || res.data == null) throw Exception((res.data?['error'] as String?) ?? 'could not update (${res.statusCode})');
+    return Session.fromJson(res.data!);
+  }
+
   /// Search a session's transcript (proposal 10). Empty [q] returns the latest
   /// messages. Results are newest-first.
   Future<List<MessageHit>> searchMessages(String sessionId, String q) async {

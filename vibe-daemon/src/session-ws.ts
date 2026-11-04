@@ -147,8 +147,11 @@ export function registerSessionWs(
             void session.answer(f.dialogId, !!f.completed, f.result, deviceId).catch(() => {});
           return; // permission prompts live in the CLI's TUI — answer via /tty
         }
-        if (f.t === "user" && typeof f.text === "string")
+        if (f.t === "user" && typeof f.text === "string") {
+          // A user-originated turn ends any limit wait and restarts the in-a-row count (proposal 67).
+          db.prepare("UPDATE sessions SET continue_count = 0, continue_at = NULL WHERE id = ?").run(id);
           session.pushUser(f.text, Array.isArray(f.images) ? f.images.filter((x: any) => typeof x === "string") : [], socket);
+        }
         // Attribute the decision to the device that answered (security.md #5).
         else if (f.t === "permission" && typeof f.toolUseID === "string")
           session.onPermission(f.toolUseID, !!f.allow, deviceId);
