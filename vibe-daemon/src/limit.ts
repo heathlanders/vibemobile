@@ -11,6 +11,7 @@ import { notifyDevices, type PushType } from "./push.js";
 import { diskGuard } from "./settings.js";
 import { maxLive } from "./sessions.js";
 import { getOrStart } from "./session-ws.js";
+import { runningCliSessions } from "./external.js";
 
 export const MAX_CONTINUES = 3;
 export const CONTINUE_PROMPT = "The usage limit has reset. Continue the task where you stopped.";
@@ -21,13 +22,14 @@ const TICK_MS = 30_000;
 
 /** Pure decision: when to continue (ISO) for a rate-limit event, or null for "don't". `rand` is in [0,1). */
 export function planContinuation(
-  info: { status?: string; rateLimitType?: string; resetsAt?: number } | null | undefined,
+  info: { status?: string; rateLimitType?: string; resetsAt?: number; overageStatus?: string } | null | undefined,
   row: { continue_after_limit?: number } | null | undefined,
   now: number,
   rand: () => number = Math.random,
 ): string | null {
   if (!row || row.continue_after_limit !== 1) return null;
   if (info?.status !== "rejected" || info.rateLimitType !== "five_hour") return null;
+  if (info.overageStatus === "allowed" || info.overageStatus === "allowed_warning") return null; // extra usage keeps the turn running
   if (typeof info.resetsAt !== "number" || !Number.isFinite(info.resetsAt)) return null;
   const resetMs = info.resetsAt * 1000;
   if (resetMs - now >= MAX_WAIT_MS) return null;
@@ -40,10 +42,12 @@ export type Deps = {
   /** Start (or reuse) the engine for the row and queue the continue prompt. */
   send: (row: Record<string, unknown>, text: string) => void;
   busy: (sessionId: string) => boolean;
+  /** A `claude` CLI is running this transcript (ADR 0012): it owns the session, never start a second writer. */
+  external: (claudeSessionId: string | null) => boolean;
   push: (type: PushType, sessionId: string) => void;
 };
 
-type Row = { id: string; project_id: string; status: string; continue_count: number };
+type Row = { id: string; project_id: string; status: string; continue_count: number; claude_session_id: string | null };
 
 /** One pass over the due continuations. Exported for tests; never throws. */
 export function tickContinuations(db: DB, deps: Deps): void {
@@ -57,8 +61,8 @@ export function tickContinuations(db: DB, deps: Deps): void {
         clear(r.id);
         deps.push("limit_gave_up", r.id);
         logEvent(db, "session.limit_gave_up", null, r.id);
-      } else if (deps.busy(r.id)) {
-        clear(r.id); // the SDK resumed it itself, or the user is driving
+      } else if (deps.busy(r.id) || deps.external(r.claude_session_id)) {
+        clear(r.id); // the SDK resumed it itself, the user is driving, or a CLI owns the transcript
       } else {
         const project = db.prepare("SELECT path FROM projects WHERE id = ?").get((r as any).project_id) as { path: string } | undefined;
         const live = (db.prepare("SELECT COUNT(*) AS n FROM sessions WHERE kind = 'claude' AND status = 'live'").get() as { n: number }).n;
@@ -80,6 +84,7 @@ export function startContinuer(db: DB, registry: EngineRegistry, queryFn?: unkno
     now: () => new Date(),
     send: (row, text) => getOrStart(registry, db, row, queryFn, streamTextFn).pushUser(text),
     busy: (id) => registry.get(id)?.busy?.() === true,
+    external: (cid) => cid !== null && runningCliSessions().has(cid),
     push: (type, id) => notifyDevices(db, type, id),
   };
   const tick = () => {

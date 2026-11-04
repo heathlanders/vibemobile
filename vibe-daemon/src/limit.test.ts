@@ -28,6 +28,7 @@ test("weekly, far-off reset, toggle off, allowed, missing resetsAt: no continuat
   assert.equal(planContinuation(rejected({ resetsAt: resets(24 * 3600 + 1) }), ON, NOW), null);
   assert.equal(planContinuation(rejected(), { continue_after_limit: 0 }, NOW), null);
   assert.equal(planContinuation(rejected({ status: "allowed" }), ON, NOW), null);
+  assert.equal(planContinuation(rejected({ overageStatus: "allowed" }), ON, NOW), null);
   assert.equal(planContinuation(rejected({ status: "allowed_warning" }), ON, NOW), null);
   assert.equal(planContinuation(rejected({ resetsAt: undefined }), ON, NOW), null);
   assert.equal(planContinuation(rejected(), undefined, NOW), null);
@@ -45,6 +46,7 @@ function ticker() {
     now: () => new Date(NOW),
     send: (row, text) => void sent.push({ id: row.id as string, text }),
     busy: (id) => busy.has(id),
+    external: (cid) => cid === "cli-owned",
     push: (type, id) => void pushes.push([type, id]),
   };
   const add = (id: string, over: Record<string, unknown> = {}) => {
@@ -157,4 +159,12 @@ test("PATCH continueAfterLimit validates, audits, and the session reads back cam
   assert.equal(got.json().continueAfterLimit, true);
   assert.equal((await patch({ continueAfterLimit: false })).json().continueAfterLimit, false);
   await app.close();
+});
+
+test("a transcript a running CLI owns is never resumed in-daemon: cleared, nothing sent", () => {
+  const t = ticker();
+  t.add("s9");
+  t.db.prepare("UPDATE sessions SET claude_session_id = 'cli-owned' WHERE id = 's9'").run();
+  tickContinuations(t.db, t.deps);
+  assert.deepEqual([t.sent.length, t.row("s9").continue_at], [0, null]);
 });
