@@ -1103,8 +1103,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
 
   @override
   Widget build(BuildContext context) {
+    // Every DropTarget hears every OS drop and only checks its bounds, so hidden
+    // tabs (same bounds, offstage) and chats under another route must opt out.
     return DropTarget(
-      enable: !isMobile,
+      enable: !isMobile && _isOnScreen(),
       onDragDone: _onDrop,
       child: Scaffold(
       appBar: AppBar(
