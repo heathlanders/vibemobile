@@ -70,3 +70,10 @@ works without it.
   WebSocket server that drops mid-session (old code: turn never delivered). Six older tests that
   drove `sendUser` on a bare controller now mark it `live` first. Not checked on a device yet
   (airplane-mode send).
+- **C2** (2026-11-19). `looksLikeAuthError` (substring match on the exception text) is gone. After
+  a failed WS upgrade both controllers call `tokenRejected` (`core/auth_probe.dart`): `GET /devices`
+  with the same token, 10 s timeouts; only 401/403 re-pairs, anything else (including unreachable)
+  retries. A socket that closes keeps using its close code (4401 → re-pair). Real trigger found:
+  the exception text carries the URL, so a hex session id containing "401"/"403" re-paired on any
+  failed upgrade. Test: `auth_probe_test.dart` against a real local server (session id
+  `s_c4013a` + 500 → no re-pair, red on old code; 401 probe → re-pair).
