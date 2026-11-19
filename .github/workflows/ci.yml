@@ -1,0 +1,42 @@
+name: ci
+# App analyze + tests and daemon tests on every PR and push to main (proposal 72 Q1).
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: '3.44.1' # same as release-windows.yml
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+  daemon:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vibe-daemon
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18' # what the box's unit runs today (proposal 69 R11 moves it to 20)
+          cache: npm
+          cache-dependency-path: vibe-daemon/package-lock.json
+      - run: sudo apt-get update && sudo apt-get install -y tmux # PTY tests attach real tmux
+      - run: |
+          git config --global user.name ci
+          git config --global user.email ci@example.invalid
+      - run: npm ci
+      - run: npm test

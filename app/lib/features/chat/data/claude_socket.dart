@@ -68,7 +68,7 @@ class ClaudeSocket {
         't': 'dialog_response',
         'dialogId': dialogId,
         'completed': completed,
-        if (result != null) 'result': result,
+        'result': ?result,
       });
 
   void _send(Map<String, dynamic> frame) => _channel.sink.add(jsonEncode(frame));
