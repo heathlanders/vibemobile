@@ -174,7 +174,7 @@ file pointers and acceptance tests are in the linked proposal; tick the box and 
 proposal's *What shipped* when merged.
 
 **Stop the bleeding ([68](docs/proposals/68-daemon-auth-hardening.md), [69](docs/proposals/69-daemon-reliability-ops.md), [70](docs/proposals/70-app-resilience.md)).**
-- [ ] 69 R1: PTY frame guard + process-level error handlers
+- [x] 69 R1: PTY frame guard + process-level error handlers
 - [ ] 68 A1: close a device's sockets on revoke (4401)
 - [ ] 68 A4: global `/pair` attempt cap; ops: remove any raw TCP forward (private ops note)
 - [ ] 70 C1: queue sends while disconnected

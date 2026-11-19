@@ -106,6 +106,52 @@ test("PTY WS: attach → type → drop → reattach survives", { skip: !tmuxInst
   await sleep(200);
 });
 
+test("PTY WS: malformed resize frames are ignored, socket keeps working", { skip: !tmuxInstalled }, async (t) => {
+  const db = openDb(":memory:");
+  const tmux = realTmux(SOCK + "d");
+  await tmux.ensureGlobals();
+  const app = await buildApp(db, tmux);
+  await app.listen({ host: "127.0.0.1", port: 0 });
+  const port = (app.server.address() as AddressInfo).port;
+  t.after(async () => {
+    await app.close();
+    await execFileP("tmux", ["-L", SOCK + "d", "kill-server"]).catch(() => {});
+  });
+
+  const { token } = (
+    await app.inject({ method: "POST", url: "/pair", payload: { code: createPairingCode(db), device_name: "t" } })
+  ).json();
+  db.prepare("INSERT INTO projects (id, path, name, type) VALUES (?,?,?,?)").run("p_ok", REPO_DIR, "vibemobile", "unknown");
+  const id = (
+    await app.inject({
+      method: "POST",
+      url: "/sessions",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { project_id: "p_ok", kind: "terminal" },
+    })
+  ).json().id;
+
+  const a = attach(port, id, token);
+  await a.opened;
+  // The route adds its message listener after async tmux calls; frames sent
+  // before that are dropped, so resend a good resize until the PTY draws.
+  for (let i = 0; i < 40 && !a.out.text; i++) {
+    a.ws.send(frame(OP_RESIZE, JSON.stringify({ cols: 100, rows: 30 })));
+    await sleep(100);
+  }
+  assert.ok(a.out.text, "PTY drew after a valid resize");
+  for (const bad of ["not json", "", "null", "{}", '{"cols":-1,"rows":5}', '{"cols":"x","rows":"y"}', '{"cols":1e9,"rows":1e9}']) {
+    a.ws.send(frame(OP_RESIZE, bad));
+  }
+  a.ws.send(Buffer.alloc(0)); // empty frame
+  await sleep(200);
+  a.ws.send(frame(OP_INPUT, "echo ALIVE_$((6*7))\n"));
+  await sleep(600);
+  assert.match(a.out.text, /ALIVE_42/, "socket still serves input after bad frames");
+  a.ws.close();
+  await sleep(200);
+});
+
 test("PTY WS: attaching a nonexistent session closes 4404", { skip: !tmuxInstalled }, async (t) => {
   const db = openDb(":memory:");
   const tmux = realTmux(SOCK + "b");

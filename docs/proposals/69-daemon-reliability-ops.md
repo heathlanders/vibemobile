@@ -69,4 +69,11 @@ Order = value per hour. One PR per step.
 
 ## What shipped
 
-(fill in per step)
+- **R1** (2026-11-19). `pty-ws.ts` wraps the resize parse in try/catch and only resizes for
+  integer cols/rows in 1..1000. `server.ts` logs `uncaughtException`/`unhandledRejection` and
+  keeps running. Test: `pty-ws.test.ts` "malformed resize frames are ignored" sends non-JSON,
+  empty, `null`, `{}`, negative, string and huge sizes plus an empty frame, then checks input
+  still echoes; on the old code the test hangs. Process handlers have no test (they live in the
+  entrypoint). Found on the way, not fixed: the route adds its `message` listener after
+  `await tmux.hasSession/detachOthers`, so frames sent right after `open` are dropped; the app's
+  first resize can be lost (the test resends until the PTY draws).
