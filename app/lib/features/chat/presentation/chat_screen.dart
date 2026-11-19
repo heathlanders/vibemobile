@@ -27,6 +27,7 @@ import '../../prompts/data/prompt_api.dart';
 import '../../prompts/domain/prompt.dart';
 import '../../prompts/presentation/improve_prompt.dart';
 import '../../sessions/data/session_api.dart';
+import '../../sessions/presentation/session_actions.dart';
 import '../../sessions/domain/session.dart';
 import '../../sessions/presentation/model_picker.dart';
 import '../../terminal/presentation/terminal_screen.dart';
@@ -990,6 +991,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   }
 
   Future<void> _close() async {
+    if (!await confirmEndSession(context, widget.session.label) || !mounted) return;
     WorktreeKept? kept;
     try {
       kept = await SessionApi(dioFor(widget.creds)).delete(widget.session.id);
