@@ -186,7 +186,7 @@ proposal's *What shipped* when merged.
 **CI ([72](docs/proposals/72-ci-and-release-hygiene.md)).**
 - [x] 72 Q1: `ci.yml` runs analyze + tests for app and daemon
 - [ ] 72 Q1 (owner): make the `app` and `daemon` checks required on main
-- [ ] 72 Q2: daemon `tsconfig.json` + `typecheck`, clean, in CI
+- [x] 72 Q2: daemon `tsconfig.json` + `typecheck`, clean, in CI
 - [ ] 72 Q4: `release.sh` builds before tagging; `--rollback`
 - [ ] 72 Q3: zod schemas on incoming WS frames
 - [ ] 72 Q5: widget tests for pairing, updater, terminal

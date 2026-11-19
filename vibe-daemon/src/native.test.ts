@@ -52,7 +52,7 @@ function fakeStream(parts: any[], calls?: any[][], genAssistant = "reply") {
       fullStream: (async function* () {
         for (const p of parts) yield p;
       })(),
-      response: Promise.resolve({ messages: [{ role: "assistant", content: genAssistant }] }),
+      response: Promise.resolve({ messages: [{ role: "assistant" as const, content: genAssistant }] }),
     };
   };
 }

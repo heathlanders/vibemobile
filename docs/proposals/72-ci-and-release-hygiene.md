@@ -49,3 +49,10 @@ About 1,150 test cases exist and none run on a pull request. Facts gathered 2026
   in `claude_socket.dart` fixed so analyze exits 0. First run on PR #44: both jobs green. Not done:
   making the checks required on main is a repo setting left to the owner (PLAN line). Not
   verified: a deliberately failing test turning the run red.
+- **Q2** (2026-11-19). `vibe-daemon/tsconfig.json` (`strict`, `noEmit`, NodeNext) and
+  `npm run typecheck`, now a CI step before `npm test`. 57 errors at first: production code was
+  clean except for missing `ws` types (added `@types/ws`); the rest were test typings (narrow fake
+  signatures, `unknown` inject payloads, an `assert.equal(x, null)` narrowing), fixed without
+  changing behaviour. `src/spike-*.ts` is excluded until R12 moves the spikes out. Box note:
+  npm runs with `NODE_ENV=production` here, so a plain `npm install` prunes dev types; use
+  `npm install --include=dev` to typecheck locally.

@@ -39,4 +39,5 @@ jobs:
           git config --global user.name ci
           git config --global user.email ci@example.invalid
       - run: npm ci
+      - run: npm run typecheck
       - run: npm test
