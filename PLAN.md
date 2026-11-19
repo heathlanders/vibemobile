@@ -181,7 +181,7 @@ proposal's *What shipped* when merged.
 - [x] 70 C1: queue sends while disconnected
 - [x] 70 C2: auth failure from close code / REST probe, not text match
 - [x] 70 C3: shared Dio with timeouts
-- [ ] 70 C4: confirm before ending a session
+- [x] 70 C4: confirm before ending a session
 
 **CI ([72](docs/proposals/72-ci-and-release-hygiene.md)).**
 - [ ] 72 Q1: `ci.yml` runs analyze + tests for app and daemon; required on main

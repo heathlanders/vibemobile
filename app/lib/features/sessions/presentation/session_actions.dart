@@ -60,6 +60,22 @@ Future<bool> editSessionTags(BuildContext context, SessionApi api, Session s) as
   }
 }
 
+/// The close X in chat and terminal ends the session on the server (proposal 70 C4):
+/// ask first. True = end it.
+Future<bool> confirmEndSession(BuildContext context, String label) async =>
+    await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('End session?'),
+        content: Text('“$label” will be ended on the server. To keep it running, go back instead.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('End')),
+        ],
+      ),
+    ) ==
+    true;
+
 /// Confirm, then end + remove the session on the daemon.
 Future<bool> killSession(BuildContext context, SessionApi api, Session s) async {
   final confirmed = await showDialog<bool>(

@@ -8,6 +8,7 @@ import '../../../core/spacing.dart';
 import '../../../core/theme.dart';
 import '../../../core/token_store.dart';
 import '../../sessions/data/session_api.dart';
+import '../../sessions/presentation/session_actions.dart';
 import '../../sessions/domain/session.dart';
 import '../../../core/platform.dart';
 import 'terminal_key_row.dart';
@@ -58,6 +59,7 @@ class _TerminalScreenState extends ConsumerState<TerminalScreen> {
   }
 
   Future<void> _close() async {
+    if (!await confirmEndSession(context, widget.session.label) || !mounted) return;
     try {
       await SessionApi(dioFor(widget.creds)).delete(widget.session.id);
     } catch (_) {

@@ -87,3 +87,8 @@ works without it.
   the daemon routes. Improve keeps its own 90 s. Tests: `dio_for_test.dart` (shared instance +
   timeouts, red on old code; a black-hole TCP host fails with `receiveTimeout`). Not covered: a
   widget test that a screen shows its error state on timeout.
+- **C4** (2026-11-19). Picked the confirm dialog (not a Leave/End split): the close X in chat and
+  terminal asks "End session?" (`confirmEndSession` in `session_actions.dart`, shared). Cancel
+  leaves it running; End deletes as before. Always asks, history or not, so the two screens stay
+  the same. Test: `end_session_confirm_test.dart` (chat: Cancel → not closed, End → closed; red on
+  old code). Terminal uses the same helper but has no widget test of its own.
