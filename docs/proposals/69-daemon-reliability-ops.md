@@ -132,3 +132,10 @@ Order = value per hour. One PR per step.
   same shell. Test: `tmux.test.ts` (server cgroup is a `.scope`; red on old code; skipped
   without user systemd). Caveat: a tmux server already running keeps its old cgroup, so the first
   restart after deploying still kills the terminals open at that moment.
+- **R10** (2026-11-19). `backpressure.ts`. Chat (`claude.ts`, `native.ts` `sendTo`): above
+  1 MiB queued on a socket, `delta`/`thinking_delta` frames are dropped; the final `assistant`
+  frame and the history replay carry the full text. PTY (`/pty`, `/tty`): bytes are never dropped;
+  above 1 MiB the pty is paused, and the first send callback that finds the queue under 256 KiB
+  resumes it. Tests: `backpressure.test.ts` (backed-up chat socket gets no deltas but the full
+  `assistant` and `result`; PTY pause/resume around the marks). Not measured on a real slow link.
+  The CLI mirror (`external.ts`) is unchanged.

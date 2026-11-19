@@ -30,6 +30,7 @@ import { buildNativeTools, nativeTier } from "./native-tools.js";
 import { TurnStatus } from "./turn-status.js";
 import { rulesForPrompt } from "./settings.js";
 import { currentTitle, refineTitle, titleOnFirstUserTurn } from "./titler.js";
+import { sendFrame } from "./backpressure.js";
 
 const nowIso = () => new Date().toISOString();
 const PERMISSION_TIMEOUT_MS = 120_000;
@@ -477,7 +478,7 @@ export class NativeSession implements EngineSession {
   }
 
   private sendTo(ws: WebSocket, frame: Record<string, unknown>): void {
-    if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(frame));
+    sendFrame(ws, frame); // drops stream deltas on a backed-up socket (69 R10)
   }
 }
 
