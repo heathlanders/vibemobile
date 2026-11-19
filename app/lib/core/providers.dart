@@ -13,16 +13,28 @@ final credsProvider = FutureProvider<Creds?>((ref) {
   return ref.read(tokenStoreProvider).read();
 });
 
-/// A Dio configured for these creds: base URL + bearer header. `validateStatus`
+/// The Dio for these creds: base URL + bearer header. `validateStatus`
 /// accepts 4xx so callers can branch on `statusCode` without try/catch noise;
-/// 5xx still throws.
-Dio dioFor(Creds creds) => Dio(
-      BaseOptions(
-        baseUrl: creds.baseUrl,
-        headers: {'authorization': 'Bearer ${creds.token}'},
-        validateStatus: (s) => s != null && s < 500,
+/// 5xx still throws. One shared instance per creds, with timeouts so a dead
+/// tailnet ends in an error instead of an endless skeleton (proposal 70 C3).
+/// Slow calls (uploads, downloads, git/LLM work) pass a longer per-request timeout.
+Dio dioFor(Creds creds) => _dios.putIfAbsent(
+      '${creds.baseUrl}\n${creds.token}',
+      () => Dio(
+        BaseOptions(
+          baseUrl: creds.baseUrl,
+          headers: {'authorization': 'Bearer ${creds.token}'},
+          validateStatus: (s) => s != null && s < 500,
+          connectTimeout: const Duration(seconds: 10),
+          receiveTimeout: const Duration(seconds: 30),
+        ),
       ),
     );
+final _dios = <String, Dio>{};
+
+/// Per-request options for calls that legitimately outlast the 30 s default: git,
+/// worktrees, `gh`, SDK transcript work, project creation (proposal 70 C3).
+Options slowCall() => Options(receiveTimeout: const Duration(minutes: 5));
 
 /// Build a `wss://…/<channel>/<id>` URL from the REST base URL (https→wss, http→ws).
 Uri _wsUrl(String baseUrl, String channel, String sessionId) {

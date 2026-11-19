@@ -180,7 +180,7 @@ proposal's *What shipped* when merged.
 - [ ] 68 A4 ops (owner): confirm nothing uses the raw TCP forward, then remove it (private ops note)
 - [x] 70 C1: queue sends while disconnected
 - [x] 70 C2: auth failure from close code / REST probe, not text match
-- [ ] 70 C3: shared Dio with timeouts
+- [x] 70 C3: shared Dio with timeouts
 - [ ] 70 C4: confirm before ending a session
 
 **CI ([72](docs/proposals/72-ci-and-release-hygiene.md)).**

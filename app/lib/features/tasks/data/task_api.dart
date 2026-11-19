@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../domain/merge_item.dart';
 import '../domain/task.dart';
+import '../../../core/providers.dart';
 
 /// Swarm tasks (proposal 65) — /projects/:id/tasks, /tasks/:id[/dispatch].
 class TaskApi {
@@ -36,7 +37,7 @@ class TaskApi {
 
   /// Starts a worktree session on the task; returns the session id.
   Future<String> dispatch(String id) async {
-    final res = await _dio.post<Map<String, dynamic>>('/tasks/$id/dispatch');
+    final res = await _dio.post<Map<String, dynamic>>('/tasks/$id/dispatch', options: slowCall());
     _check(res);
     return res.data!['session_id'] as String;
   }
@@ -57,7 +58,7 @@ class TaskApi {
 
   /// [sha] is the item's full `tested_sha`, as shown to the user.
   Future<MergeItem> approve(String itemId, String sha) async {
-    final res = await _dio.post<Map<String, dynamic>>('/merge-queue/$itemId/approve', data: {'sha': sha});
+    final res = await _dio.post<Map<String, dynamic>>('/merge-queue/$itemId/approve', data: {'sha': sha}, options: slowCall());
     _check(res);
     return MergeItem.fromJson(res.data!);
   }

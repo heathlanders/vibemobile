@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 
 import '../../sessions/domain/session.dart';
 import '../domain/scaffold.dart';
+import '../../../core/providers.dart';
 
 /// Raised when the daemon rejects a create/CRUD call (4xx). `dioFor` accepts
 /// 4xx without throwing, so the API layer surfaces the daemon's `error` string.
@@ -25,6 +26,7 @@ class ProjectApi {
     final res = await _dio.post<Map<String, dynamic>>(
       '/projects',
       data: {'name': name, 'scaffold_id': ?scaffoldId, 'git': git},
+      options: slowCall(),
     );
     if (res.statusCode == 201) return Project.fromJson(res.data!);
     throw ProjectApiException((res.data?['error'] ?? 'create failed').toString());
