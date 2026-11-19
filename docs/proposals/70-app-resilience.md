@@ -101,3 +101,10 @@ works without it.
   `chat_draft_test.dart` (draft survives dispose + re-create, red on old code; an accepted send
   clears it; newline action). The newline test can't be red on the Linux test host (desktop was
   already newline there). Not checked on a phone yet.
+- **C9** (2026-11-19). `applyFrame` wraps the reducer: a frame with a field of the wrong type is
+  skipped with a debug log instead of throwing out of the socket listener. `ClaudeSocket.frames`
+  drops payloads that aren't a JSON object instead of erroring the stream, which closed the session
+  and reconnected. Tests: `chat_bad_frame_test.dart` (mistyped `assistant`/`history`/`tool_use`
+  frames skipped, later frames apply; non-JSON and array frames on a real socket leave it live
+  with no reconnect; both red on old code). A frame that throws halfway may leave that one
+  frame's partial change in place.

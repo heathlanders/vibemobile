@@ -24,10 +24,17 @@ class ClaudeSocket {
     return ClaudeSocket._(channel);
   }
 
-  /// Decoded server frames (`{t: ...}`). See claude-ws.md for the frame table.
-  Stream<Map<String, dynamic>> get frames => _channel.stream.map((event) {
-        final s = event is String ? event : utf8.decode(event as List<int>);
-        return jsonDecode(s) as Map<String, dynamic>;
+  /// Decoded server frames (`{t: ...}`). See claude-ws.md for the frame table. A
+  /// payload that isn't a JSON object is dropped, not turned into a stream error
+  /// (which would close the session and reconnect; proposal 70 C9).
+  Stream<Map<String, dynamic>> get frames => _channel.stream.expand((event) {
+        try {
+          final s = event is String ? event : utf8.decode(event as List<int>);
+          final j = jsonDecode(s);
+          return j is Map<String, dynamic> ? [j] : const <Map<String, dynamic>>[];
+        } catch (_) {
+          return const <Map<String, dynamic>>[];
+        }
       });
 
   int? get closeCode => _channel.closeCode;

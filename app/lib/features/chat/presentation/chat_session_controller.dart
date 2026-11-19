@@ -239,9 +239,19 @@ class ChatSessionController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  /// Frame → state reducer (claude-ws.md). Public for unit testing.
+  /// Frame → state reducer (claude-ws.md). Public for unit testing. A frame with a
+  /// field of the wrong type is skipped (proposal 70 C9): one bad frame from a newer or
+  /// buggy daemon must not throw out of the socket listener and drop the session.
   @visibleForTesting
   void applyFrame(Map<String, dynamic> f) {
+    try {
+      _applyFrame(f);
+    } catch (e) {
+      debugPrint('chat: skipped malformed ${f['t']} frame: $e');
+    }
+  }
+
+  void _applyFrame(Map<String, dynamic> f) {
     switch (f['t']) {
       case 'history':
         messages.clear();
