@@ -150,3 +150,22 @@ test("failed auth is limited per tailnet client (X-Forwarded-For from loopback o
   });
   assert.equal(forged.statusCode, 200);
 });
+
+test("20 wrong /pair codes from 20 forwarded IPs lock pairing until a new code is minted (68 A4)", async () => {
+  const { db, app } = await setup();
+  const live = createPairingCode(db);
+  for (let i = 0; i < 20; i++) {
+    const res = await app.inject({
+      method: "POST",
+      url: "/pair",
+      headers: { "x-forwarded-for": `100.64.1.${i}` }, // a fresh IP each try: per-IP limits never trip
+      payload: { code: "00000000", device_name: "x" },
+    });
+    assert.equal(res.statusCode, 401);
+  }
+  assert.equal((await pair(app, live)).statusCode, 401, "outstanding code burned by the lockout");
+  assert.ok(db.prepare("SELECT 1 FROM events WHERE kind = 'pair.lockout'").get(), "lockout audited");
+  const fresh = createPairingCode(db);
+  assert.equal((await pair(app, "00000000")).statusCode, 401);
+  assert.equal((await pair(app, fresh)).statusCode, 201, "a code minted after the lockout works; old failures don't re-burn it");
+});

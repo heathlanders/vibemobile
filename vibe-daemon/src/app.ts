@@ -9,7 +9,7 @@ import websocket from "@fastify/websocket";
 import type { IncomingMessage } from "node:http";
 import type { WebSocket } from "ws";
 import type { DB } from "./db.js";
-import { authenticate, createPairingCode, pairDevice, logEvent, PAIR_TTL_MIN, type Device } from "./auth.js";
+import { authenticate, createPairingCode, pairDevice, recordPairFailure, logEvent, PAIR_TTL_MIN, type Device } from "./auth.js";
 import { scanProjects, upsertProjects, projectRoots } from "./scanner.js";
 import { realTmux, type Tmux } from "./tmux.js";
 import { registerSessionRoutes } from "./sessions.js";
@@ -125,7 +125,7 @@ export async function buildApp(
       if (!code || !device_name) return reply.code(400).send({ error: "code and device_name required" });
       const result = pairDevice(db, code, device_name);
       if (!result) {
-        logEvent(db, "pair.fail", null, device_name);
+        recordPairFailure(db, device_name);
         return reply.code(401).send({ error: "invalid or expired code" });
       }
       return reply.code(201).send(result); // { device_id, token } — token shown once
