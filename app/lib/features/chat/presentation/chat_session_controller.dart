@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 
+import '../../../core/auth_probe.dart';
 import '../../../core/reconnect.dart';
 import '../../notifications/data/push_service.dart';
 import '../data/claude_socket.dart';
@@ -226,8 +227,11 @@ class ChatSessionController extends ChangeNotifier with WidgetsBindingObserver {
         onDone: () => _onClosed(socket.closeCode),
         onError: (_) => _onClosed(socket.closeCode),
       );
-    } catch (e) {
-      if (looksLikeAuthError(e)) {
+    } catch (_) {
+      // Failed upgrade: no close code. Only the REST probe decides auth (proposal 70 C2).
+      final rejected = await tokenRejected(url, token);
+      if (_disposed || _paused) return;
+      if (rejected) {
         _fail();
       } else {
         _onClosed(null);

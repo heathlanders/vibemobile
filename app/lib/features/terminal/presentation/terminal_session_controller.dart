@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:xterm/xterm.dart';
 
+import '../../../core/auth_probe.dart';
 import '../../../core/reconnect.dart';
 import '../data/pty_socket.dart';
 import '../domain/ctrl_latch.dart';
@@ -57,10 +58,12 @@ class TerminalSessionController extends ChangeNotifier {
         onDone: () => _onClosed(socket.closeCode),
         onError: (_) => _onClosed(socket.closeCode),
       );
-    } catch (e) {
-      // The upgrade itself failed (no open socket, so no close code). A 401 here
-      // is auth; anything else is treated as transient and retried.
-      if (looksLikeAuthError(e)) {
+    } catch (_) {
+      // The upgrade itself failed (no open socket, so no close code). Only a 401/403
+      // from the REST probe is auth (proposal 70 C2); anything else is retried.
+      final rejected = await tokenRejected(url, token);
+      if (_disposed) return;
+      if (rejected) {
         _fail();
       } else {
         _onClosed(null);

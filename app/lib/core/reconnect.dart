@@ -29,10 +29,3 @@ Duration backoffDelay(int attempt, {double Function()? rng}) {
   final jitter = 1 + (r * 0.4 - 0.2); // 0.8 … 1.2
   return Duration(milliseconds: (capped * jitter * 1000).round());
 }
-
-/// True if a connect-time exception looks like an auth failure (the upgrade was
-/// refused with 401/403, so there's no close code to read).
-bool looksLikeAuthError(Object e) {
-  final s = e.toString();
-  return s.contains('401') || s.contains('403');
-}
