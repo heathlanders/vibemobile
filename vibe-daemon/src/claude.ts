@@ -421,10 +421,13 @@ export class ClaudeSession implements EngineSession {
   }
 
   // Detached and quiet past `idleMs` → safe to evict (frees the SDK subprocess;
-  // reattach resumes via claude_session_id). handle() touches lastActivityMs on
-  // every SDK message even while detached, so an in-progress turn is never reaped.
+  // reattach resumes via claude_session_id). Never while a turn runs or a prompt
+  // waits on the phone: a long silent Bash or an unanswered question sends no SDK
+  // traffic, so lastActivityMs alone would reap a live turn (proposal 69 R2).
   isReapable(idleMs: number): boolean {
-    return this.sockets.size === 0 && !this.stopped && Date.now() - this.lastActivityMs > idleMs;
+    if (this.sockets.size > 0 || this.stopped || this.busy()) return false;
+    const { permissions, dialogs } = this.pending();
+    return permissions.length === 0 && dialogs.length === 0 && Date.now() - this.lastActivityMs > idleMs;
   }
 
   // ---- input (multi-turn) --------------------------------------------------

@@ -769,3 +769,29 @@ test("status frames: running through the turn, waiting on approval, reattach mid
   assert.ok(ws2.frames.findLastIndex((f: any) => f.t === "status") > resultIdx, "idle status follows result");
   s.stop();
 });
+
+test("reaper skips a detached session mid-turn, then reaps it once idle (69 R2)", async () => {
+  const db = seedDb();
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  const slowQuery = (params: { prompt: AsyncIterable<any>; options: any }) =>
+    (async function* () {
+      yield { type: "system", subtype: "init", session_id: "claude-slow", model: "claude-x" };
+      await params.prompt[Symbol.asyncIterator]().next();
+      await gate; // a long silent Bash, or a question waiting on the phone: no SDK traffic
+      yield { type: "result", subtype: "success", total_cost_usd: 0 };
+    })();
+  const s = new ClaudeSession(db, "s1", "/tmp", slowQuery as any);
+  const ws = fakeWs();
+  s.attach(ws);
+  s.start();
+  s.pushUser("go");
+  await waitFor(() => s.busy());
+  s.detach(ws);
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(s.isReapable(0), false, "a running turn is never reaped, however quiet");
+  release();
+  await waitFor(() => !s.busy());
+  assert.equal(s.isReapable(0), true, "idle and detached → reapable");
+  s.stop();
+});

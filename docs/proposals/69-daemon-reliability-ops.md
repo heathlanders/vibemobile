@@ -87,3 +87,9 @@ Order = value per hour. One PR per step.
   1012 + DB closed; all red on old code). Checked by hand: a scratch instance (own DB, hook socket,
   tmux socket, port 18787) served the new `/health` and exited cleanly on SIGTERM. Not live until
   the daemon restarts.
+- **R2** (2026-11-19). `ClaudeSession.isReapable` is false while a turn runs (`busy()`) or a
+  permission/dialog is pending, whatever `lastActivityMs` says: a long silent Bash or an unanswered
+  question sends no SDK traffic, so the old check reaped live turns. Test: `claude.test.ts` (fake
+  SDK blocks mid-turn: detached + quiet → not reapable; after `result` → reapable; red on old code).
+  Not changed: `NativeSession.isReapable` has the same shape; native turns stream from the API, but
+  a slow native tool call would hit the same gap.
