@@ -12,7 +12,12 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- In-app update: hand the downloaded APK to the system installer. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+    <!-- No cloud/device-transfer backup (proposal 71 S2): the token lives in secure storage,
+         but cached transcripts and settings should not leave the phone either. -->
     <application
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:label="vibemobile"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
