@@ -3,6 +3,7 @@
 // catalog (projects, sessions); messages / prompts land with their milestones.
 // WAL + foreign keys on. Pass ":memory:" for tests.
 
+import { chmodSync, existsSync } from "node:fs";
 import Database from "better-sqlite3";
 import { FOUNDATIONS_FILES } from "./scaffold-seed.js";
 import { migrateLedgerToDeltas } from "./spend.js";
@@ -367,6 +368,9 @@ function migrate(db: DB): void {
 export function openDb(file = process.env.VIBE_DB ?? "vibe.db"): DB {
   const db = new Database(file);
   db.pragma("journal_mode = WAL");
+  // Transcripts, token hashes, FCM tokens: owner-only (proposal 68 A8). SQLite gives the
+  // -wal/-shm files the main file's mode when it creates them.
+  if (file !== ":memory:") for (const f of [file, `${file}-wal`, `${file}-shm`]) if (existsSync(f)) chmodSync(f, 0o600);
   db.pragma("foreign_keys = ON");
   db.exec(SCHEMA);
   migrate(db);
