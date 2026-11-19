@@ -117,3 +117,15 @@ works without it.
   Not measured with the DevTools frame chart on a phone. Test: `chat_stream_throttle_test.dart`
   (300 deltas → ≤ 4 notifications, text complete; red on old code: 300). One older test now pumps
   50 ms for a delta to show.
+- **C10 + C11** (2026-11-19). C10: `core/errors.dart` `friendlyError(e)`: timeouts → "didn't
+  answer in time", unreachable / socket errors → "Can't reach the server. Check that Tailscale is
+  connected.", a daemon `{error}` body → that text, other 5xx → "The server hit an error (N)",
+  our API exceptions → their message, anything else → "Something went wrong". Replaces all 10 raw
+  `Text('$e')` sites; the app root's error screen gains Retry (re-reads creds). The reconnect banner
+  shows **Retry now** (`ChatSessionController.retryNow`, skips the backoff). C11: a tool result over
+  2,000 chars shows **Show full output** (scrollable, selectable dialog). Tests:
+  `friendly_error_test.dart`, `retryNow` in `chat_offline_send_test.dart` (reconnects in < 300 ms,
+  below the 0.4 s minimum backoff), `tool_full_output_test.dart` (red on old code). Caveat: in the
+  test harness a real tap on the button never reached it (the hit test landed on the list), so
+  the test presses it directly; check by hand on a device that the button responds. The terminal's
+  banner has no Retry now yet. Pairing errors still show raw text (separate screen).

@@ -6,6 +6,7 @@ import '../../../core/token_store.dart';
 import '../../../core/widgets.dart';
 import '../../system/presentation/system_screen.dart';
 import '../data/server_settings_api.dart';
+import '../../../core/errors.dart';
 
 /// Session rules & storage (ADR 0026): what every session is told about where data may
 /// live, when the server warns about a full disk, and when it refuses new work.
@@ -47,7 +48,7 @@ class _ServerSettingsScreenState extends State<ServerSettingsScreen> {
       final s = await _api.update(values);
       if (mounted) setState(() => _s = s);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     } finally {
       if (mounted) setState(() => _saving = false);
     }

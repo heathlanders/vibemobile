@@ -19,6 +19,7 @@ import '../data/session_api.dart';
 import '../domain/session.dart';
 import 'model_picker.dart';
 import 'session_actions.dart';
+import '../../../core/errors.dart';
 
 /// One project's sessions: list them, start a terminal or Claude session, tap to
 /// open. (Extracted from the M2 picker; the dashboard navigates here.)
@@ -135,7 +136,7 @@ class _ProjectSessionsScreenState extends State<ProjectSessionsScreen> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Cleared $n stale sessions')));
       _reload();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     }
   }
 
@@ -145,7 +146,7 @@ class _ProjectSessionsScreenState extends State<ProjectSessionsScreen> {
       final s = await _api.create(widget.project.id, kind: kind, model: model, preset: preset, worktree: worktree);
       if (mounted) await _openSession(s);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     } finally {
       if (mounted) setState(() => _creating = false);
     }
@@ -170,7 +171,7 @@ class _ProjectSessionsScreenState extends State<ProjectSessionsScreen> {
     try {
       templates = templatesOf(await PromptApi(dioFor(widget.creds)).list(projectId: widget.project.id));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
       return;
     }
     if (!mounted) return;

@@ -215,7 +215,7 @@ proposal's *What shipped* when merged.
 - [x] 70 C9: bad frame skipped, not thrown
 - [x] 70 C7: memoize + throttle streaming rebuilds (measure before/after)
 - [ ] 70 C8: desktop minimize keeps sockets (repro first)
-- [ ] 70 C10 + C11: readable errors, Retry now, full tool output
+- [x] 70 C10 + C11: readable errors, Retry now, full tool output
 - [ ] 71 S1: signed update manifest (two-release rollout); `reviewer` pass
 - [ ] 71 S2: no Android backup; transcript cache in private files, pruned
 - [ ] 71 S4: https-only pairing

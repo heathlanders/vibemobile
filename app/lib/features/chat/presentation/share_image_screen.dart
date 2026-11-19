@@ -12,6 +12,7 @@ import '../../files/presentation/upload_to_root.dart';
 import '../../sessions/data/session_api.dart';
 import '../../sessions/domain/session.dart';
 import 'chat_screen.dart';
+import '../../../core/errors.dart';
 
 /// Landing for an image shared into the app via the OS share sheet (proposal 16).
 /// Pick a live Claude session or spin up a new one in a project; the shared
@@ -57,7 +58,7 @@ class _ShareImageScreenState extends State<ShareImageScreen> {
       final s = await _api.create(p.id, kind: 'claude');
       await _open(s);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
