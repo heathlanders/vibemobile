@@ -77,3 +77,13 @@ Order = value per hour. One PR per step.
   entrypoint). Found on the way, not fixed: the route adds its `message` listener after
   `await tmux.hasSession/detachOthers`, so frames sent right after `open` are dropped; the app's
   first resize can be lost (the test resends until the PTY draws).
+- **R5** (2026-11-19). Fastify logger on in `server.ts` only (pino JSON → stdout → journald;
+  request lines off because `/system` polls every few seconds). `setErrorHandler`: a 5xx is logged
+  with its stack and answered `{error: "internal error"}` (no message: it can carry paths or
+  command text); a 4xx answers `{error: <message>}`. `/health` (still public) returns
+  `{ok, db, uptimeSec, sessions}`, 503 when the DB stops answering. SIGTERM/SIGINT run
+  `stopDaemon` (`shutdown.ts`): every WS gets 1012, in-flight requests finish, the DB closes;
+  forced exit after 10 s. Tests: `health.test.ts` (health + 503, 500 without the message, stop →
+  1012 + DB closed; all red on old code). Checked by hand: a scratch instance (own DB, hook socket,
+  tmux socket, port 18787) served the new `/health` and exited cleanly on SIGTERM. Not live until
+  the daemon restarts.

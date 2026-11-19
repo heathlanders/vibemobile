@@ -74,12 +74,24 @@ export async function buildApp(
   registry: ClaudeRegistry = new Map(),
   queryFn?: unknown, // injectable Agent SDK query (tests); default = real SDK
   streamTextFn?: unknown, // injectable Vercel AI SDK streamText (native tests); default = real
+  opts: { logger?: boolean } = {}, // server.ts turns it on (pino → stdout → journald); tests stay quiet
 ): Promise<FastifyInstance> {
   // The daemon binds localhost and `tailscale serve` is the only ingress, so the
   // socket peer is always 127.0.0.1. Trust X-Forwarded-For from loopback ONLY:
   // req.ip becomes the tailnet client's address (the hop tailscale appended),
   // so per-IP limits (/pair, failed auth) are per client, not one shared bucket.
-  const app = Fastify({ logger: false, trustProxy: "127.0.0.1" });
+  // Request lines off (/system is polled every few seconds); errors are logged below.
+  const app = Fastify({ logger: opts.logger ?? false, disableRequestLogging: true, trustProxy: "127.0.0.1" });
+  // A 5xx is logged with its stack and answered without its message (it can carry
+  // paths or command text). 4xx (validation, rate limit) keep their own reply.
+  app.setErrorHandler((err: { statusCode?: number; message: string }, req, reply) => {
+    const status = err.statusCode && err.statusCode < 500 ? err.statusCode : 500;
+    if (status >= 500) {
+      req.log.error({ err, url: req.url }, "request failed");
+      return reply.code(500).send({ error: "internal error" });
+    }
+    return reply.code(status).send({ error: err.message });
+  });
   const authLimit = authFailLimiter();
   await app.register(rateLimit, { global: false }); // opt-in per route
   await app.register(websocket);
@@ -113,7 +125,17 @@ export async function buildApp(
     deviceOf.set(req.raw, device.id);
   });
 
-  app.get("/health", async () => ({ ok: true }));
+  // Public (no token): liveness for a probe or the owner. 503 if the DB stopped answering.
+  app.get("/health", async (_req, reply) => {
+    let dbOk = false;
+    try {
+      dbOk = db.prepare("SELECT 1 AS x").get() !== undefined;
+    } catch {
+      /* closed or broken */
+    }
+    const body = { ok: dbOk, db: dbOk, uptimeSec: Math.round(process.uptime()), sessions: registry.size };
+    return reply.code(dbOk ? 200 : 503).send(body);
+  });
 
   // Pairing (security #3): redeem a terminal-printed code for a device token.
   // Rate-limited so the 8-digit code can't be brute-forced over the tunnel.
