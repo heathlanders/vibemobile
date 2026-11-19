@@ -65,7 +65,7 @@ void main() {
     testWidgets('streams deltas into the tail with a streaming caret', (tester) async {
       final c = await pump(tester);
       c.applyFrame({'t': 'delta', 'text': 'hello wor'});
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50)); // deltas are coalesced to ~30 Hz (proposal 70 C7)
       expect(find.textContaining('hello wor ▍'), findsOneWidget);
 
       c.applyFrame({'t': 'assistant', 'text': 'hello world'});

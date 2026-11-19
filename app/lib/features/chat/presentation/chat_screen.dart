@@ -143,6 +143,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   late final _input = PasteTextController(_pastes);
   late final _inputFocus = FocusNode(onKeyEvent: _onComposerKey);
 
+  // Grouped rows + gallery, recomputed only when messages are added or a non-delta frame lands.
+  (int, int)? _derivedKey;
+  List<Object> _rows = const [];
+  List<ChatImageSource> _gallery = const [];
+
   // Draft persistence (proposal 70 C5): saved half a second after typing stops and on
   // leave; the paste tokens are expanded so the stored text is what would be sent.
   Timer? _draftTimer;
@@ -1276,9 +1281,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
               Expanded(
                 child: Stack(children: [
                   Builder(builder: (context) {
-                  // Consecutive tool calls fold into one collapsed row.
-                  final rows = groupToolRuns(_controller.messages);
-                  final gallery = galleryFromMessages(_controller.messages, widget.session.id);
+                  // Consecutive tool calls fold into one collapsed row. Both derived lists
+                  // are reused while only a streaming bubble grows (proposal 70 C7).
+                  final key = (_controller.messages.length, _controller.revision);
+                  if (key != _derivedKey) {
+                    _derivedKey = key;
+                    _rows = groupToolRuns(_controller.messages);
+                    _gallery = galleryFromMessages(_controller.messages, widget.session.id);
+                  }
+                  final rows = _rows;
+                  final gallery = _gallery;
                   final list = ListView.builder(
                     controller: _scroll,
                     padding: const EdgeInsets.all(Spacing.md),

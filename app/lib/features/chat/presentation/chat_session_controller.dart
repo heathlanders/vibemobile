@@ -154,6 +154,10 @@ class ChatSessionController extends ChangeNotifier with WidgetsBindingObserver {
   // pushes instead (ADR 0013). Resume reconnects; no retry while paused.
   bool _paused = false;
   bool _observing = false;
+  Timer? _deltaTimer; // pending coalesced notify for stream deltas
+  /// Bumped by every frame except stream deltas: lets the screen reuse its grouped
+  /// rows and image gallery while only the streaming bubble's text grows.
+  int revision = 0;
   ChatMessage? _streaming; // the assistant bubble currently being built by deltas
   ChatMessage? _thinking; // the thinking row currently being built by thinking_delta
 
@@ -432,7 +436,20 @@ class ChatSessionController extends ChangeNotifier with WidgetsBindingObserver {
         // Server auto-titled the session (ADR 0009); the app bar reads this.
         title = f['title'] as String?;
     }
-    notifyListeners();
+    // Stream deltas only grow the last bubble: coalesce them to ~30 Hz so a fast reply
+    // doesn't rebuild the whole chat per token (proposal 70 C7). Anything else notifies
+    // now and bumps [revision], which the screen keys its derived rows on.
+    if (f['t'] case 'delta' || 'thinking_delta') {
+      _deltaTimer ??= Timer(const Duration(milliseconds: 33), () {
+        _deltaTimer = null;
+        if (!_disposed) notifyListeners();
+      });
+    } else {
+      revision++;
+      _deltaTimer?.cancel();
+      _deltaTimer = null;
+      notifyListeners();
+    }
     // Persist when durable content changed (not on transient deltas).
     if (f['t'] case 'history' || 'assistant' || 'result' || 'tool_use') _saveCache();
   }
@@ -619,6 +636,7 @@ class ChatSessionController extends ChangeNotifier with WidgetsBindingObserver {
     _disposed = true;
     if (_observing) WidgetsBinding.instance.removeObserver(this);
     _retry?.cancel();
+    _deltaTimer?.cancel();
     _sub?.cancel();
     _socket?.close();
     super.dispose();
