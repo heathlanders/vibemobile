@@ -92,3 +92,12 @@ works without it.
   leaves it running; End deletes as before. Always asks, history or not, so the two screens stay
   the same. Test: `end_session_confirm_test.dart` (chat: Cancel → not closed, End → closed; red on
   old code). Terminal uses the same helper but has no widget test of its own.
+- **C5 + C6** (2026-11-19). C5: `DraftStore` (SharedPreferences, `draft:<sessionId>`) saves the
+  composer text 500 ms after typing stops and when the chat is left, with paste tokens expanded;
+  restored on open unless there is an `initialDraft` or the user already typed; an accepted send
+  empties the box, which removes the entry. Best-effort: a storage error means no draft. C6: the
+  composer uses `TextInputAction.newline` on every platform, so a phone's Enter inserts a line
+  and sending is the button; desktop keeps Enter-to-send via its key handler. Tests:
+  `chat_draft_test.dart` (draft survives dispose + re-create, red on old code; an accepted send
+  clears it; newline action). The newline test can't be red on the Linux test host (desktop was
+  already newline there). Not checked on a phone yet.
