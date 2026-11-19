@@ -3,7 +3,7 @@
 **Question (gap analysis):** every mainstream harness shows how full the context window is and
 lets you compact. What does the SDK give the daemon, and does a streamed `/compact` work?
 
-**Script:** `vibe-daemon/src/spike-compact.ts` — throwaway temp-dir cwd, SDK 0.3.291, model
+**Script:** `vibe-daemon/spikes/spike-compact.ts` — throwaway temp-dir cwd, SDK 0.3.291, model
 `claude-sonnet-5-5`, real Claude (a few cents). Run 2026-10-07: two turns, then `/compact`.
 
 ## Results

@@ -4,7 +4,7 @@
 mainstream harnesses. Can the daemon list what `/name` can run, and does sending `/name args`
 as a normal chat message run it?
 
-**Script:** `vibe-daemon/src/spike-commands.ts` — throwaway temp-dir cwd with
+**Script:** `vibe-daemon/spikes/spike-commands.ts` — throwaway temp-dir cwd with
 `.claude/commands/hello.md`, SDK 0.3.291, real Claude (a few cents). Run 2026-10-07.
 
 ## Results
@@ -34,5 +34,5 @@ as a normal chat message run it?
 ## Re-run
 
 ```
-cd vibe-daemon && npx tsx src/spike-commands.ts
+cd vibe-daemon && npx tsx spikes/spike-commands.ts
 ```

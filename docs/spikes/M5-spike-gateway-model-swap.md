@@ -1,7 +1,7 @@
 # M5 Spike — Gateway model swap (Agent SDK base-URL mode + tool loop)
 
 **Status:** ⏳ Pending live run (needs a running gateway + provider key)
-**Code:** `vibe-daemon/src/spike-gateway.ts`
+**Code:** `vibe-daemon/spikes/spike-gateway.ts`
 **Run:**
 ```
 VIBE_GATEWAY_URL=http://127.0.0.1:4000 VIBE_GATEWAY_TOKEN=<tok> \

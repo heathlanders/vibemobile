@@ -307,7 +307,7 @@ Rules (mirror the permission gate):
 ## Attachments (image input)
 
 A `user` turn can carry images (proposal 16, SDK format confirmed by
-`vibe-daemon/src/spike-image.ts` — the SDK forwards `{type:'image', source:{type:
+`vibe-daemon/spikes/spike-image.ts` — the SDK forwards `{type:'image', source:{type:
 'base64', media_type, data}}` blocks in the streaming input). Binary does **not**
 ride the JSON event channel; it's uploaded over REST first:
 

@@ -1,7 +1,7 @@
 # M6 Spike — Native engine (Vercel AI SDK, non-Claude model + tool loop)
 
 **Status:** ⏳ Pending live run (needs a real `OPENAI_API_KEY`)
-**Code:** `vibe-daemon/src/spike-native.ts`
+**Code:** `vibe-daemon/spikes/spike-native.ts`
 **Run:** `OPENAI_API_KEY=sk-… npm run spike:native -- <model-id>` (e.g. `gpt-4o`)
 
 ## Risk being killed

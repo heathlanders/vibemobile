@@ -67,7 +67,7 @@ While a task is `running` or `review`, other sessions in the project are denied 
   audit, read filtering).
 - `spike-peers.ts` against the real SDK: the model discovered the tools, listed the
   sibling, sent the message, and it was delivered (~7s). Run `pnpm tsx
-  src/spike-peers.ts` (auto) and `... ask` (the cards appear; nothing is delivered
+  spikes/spike-peers.ts` (auto) and `... ask` (the cards appear; nothing is delivered
   until approved; audit rows carry the approving device).
 
 ## Known limits / not done

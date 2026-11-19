@@ -4,7 +4,7 @@
 sessions opened in *this* repo see them. Can the daemon make every prompt sent through
 VibeMobile follow them — in any project — without breaking each project's own `CLAUDE.md`?
 
-**Script:** `vibe-daemon/src/spike-session-rules.ts [default|append]` — throwaway temp-dir cwd
+**Script:** `vibe-daemon/spikes/spike-session-rules.ts [default|append]` — throwaway temp-dir cwd
 containing a `CLAUDE.md` that demands a marker word; SDK 0.3.291, real Claude (a few cents).
 Run 2026-10-07. Also checked through `ClaudeSession` end to end (see below).
 
@@ -36,6 +36,6 @@ Run 2026-10-07. Also checked through `ClaudeSession` end to end (see below).
 
 ```
 cd vibe-daemon
-npx tsx src/spike-session-rules.ts default
-npx tsx src/spike-session-rules.ts append
+npx tsx spikes/spike-session-rules.ts default
+npx tsx spikes/spike-session-rules.ts append
 ```

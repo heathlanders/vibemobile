@@ -1,7 +1,7 @@
 # Proposal 16 — Image / screenshot input
 
 > **Status: shipped (2026-06-17).** SDK format de-risked by spike
-> (`vibe-daemon/src/spike-image.ts`). Wire/REST contract graduated into
+> (`vibe-daemon/spikes/spike-image.ts`). Wire/REST contract graduated into
 > [claude-ws.md](../protocols/claude-ws.md#attachments-image-input) and
 > [session-rest.md](../protocols/session-rest.md#attachments-image-input-claude-sessions).
 > This doc is the rationale; the protocols are the source of truth.
@@ -61,7 +61,7 @@ with `content` as an array instead of a bare string works:
 ```
 content: [{type:"text", text}, {type:"image", source:{type:"base64", media_type, data}}]
 ```
-Spike `vibe-daemon/src/spike-image.ts` (re-run: `npx tsx src/spike-image.ts`) sent
+Spike `vibe-daemon/spikes/spike-image.ts` (re-run: `npx tsx spikes/spike-image.ts`) sent
 a solid-red PNG; Claude (`claude-opus-4-8`) replied "Red." Cost $0.14, one turn.
 
 Consequences for the build:

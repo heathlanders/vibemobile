@@ -4,7 +4,7 @@
 file edits to an earlier user message, using uuids it mints itself, including
 across a `resume` and inside a git worktree cwd?
 
-**Script:** `vibe-daemon/src/spike-checkpoint.ts [worktree]` — throwaway temp-dir
+**Script:** `vibe-daemon/spikes/spike-checkpoint.ts [worktree]` — throwaway temp-dir
 cwd, SDK 0.3.291, real Claude (a few cents per run). Run 2026-10-07, both modes.
 
 ## Results
@@ -37,6 +37,6 @@ cwd, SDK 0.3.291, real Claude (a few cents per run). Run 2026-10-07, both modes.
 
 ```
 cd vibe-daemon
-npx tsx src/spike-checkpoint.ts            # plain temp dir
-npx tsx src/spike-checkpoint.ts worktree   # cwd = git worktree
+npx tsx spikes/spike-checkpoint.ts            # plain temp dir
+npx tsx spikes/spike-checkpoint.ts worktree   # cwd = git worktree
 ```

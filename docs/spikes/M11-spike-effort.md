@@ -3,7 +3,7 @@
 **Question (gap analysis):** can the daemon set a session's reasoning effort, at start and
 live, and does it change anything observable?
 
-**Script:** `vibe-daemon/src/spike-effort.ts [start low|start max|live low]` — throwaway
+**Script:** `vibe-daemon/spikes/spike-effort.ts [start low|start max|live low]` — throwaway
 temp-dir cwd, SDK 0.3.291, model `claude-sonnet-5-5`, adaptive summarized thinking, real
 Claude (a few cents per run). Run 2026-10-07 on a hard counting question.
 

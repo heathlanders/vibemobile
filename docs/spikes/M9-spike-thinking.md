@@ -3,7 +3,7 @@
 **Question (gap analysis):** every mainstream harness shows the model's reasoning.
 Can the daemon surface it, and what does the SDK actually emit?
 
-**Script:** `vibe-daemon/src/spike-thinking.ts [enabled:summarized|adaptive:summarized|adaptive:omitted|default]`
+**Script:** `vibe-daemon/spikes/spike-thinking.ts [enabled:summarized|adaptive:summarized|adaptive:omitted|default]`
 — throwaway temp-dir cwd, SDK 0.3.291, model `claude-sonnet-5-5`, real Claude (a few
 cents per run). Run 2026-10-07. Uses a hard counting question: an easy one (the
 bat-and-ball puzzle) made *adaptive* thinking decide not to think at all.
