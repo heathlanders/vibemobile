@@ -39,6 +39,7 @@ import { currentTitle, refineTitle, titleOnFirstUserTurn } from "./titler.js";
 import { DEFAULT_MODE, SESSION_MODES, type EngineSession, type RewindResult, type SessionMode } from "./engine.js";
 import { TurnStatus } from "./turn-status.js";
 import { createPeerServer, PEER_SERVER } from "./peer-tools.js";
+import { sendFrame } from "./backpressure.js";
 
 // Loose SDK shapes — the SDK's types are large; the spike already casts (any).
 type SdkMsg = any;
@@ -936,7 +937,7 @@ export class ClaudeSession implements EngineSession {
   }
 
   private sendTo(ws: WebSocket, frame: Record<string, unknown>): void {
-    if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(frame));
+    sendFrame(ws, frame); // drops stream deltas on a backed-up socket (69 R10)
   }
 }
 

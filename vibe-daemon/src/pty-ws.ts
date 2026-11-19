@@ -15,6 +15,7 @@ import type { Tmux } from "./tmux.js";
 import type { Device } from "./auth.js";
 import { inputAudit } from "./input-audit.js";
 import { parseResize } from "./ws-frames.js";
+import { pipePty } from "./backpressure.js";
 
 const PING_MS = 15_000;
 
@@ -40,9 +41,7 @@ export function registerPtyWs(app: FastifyInstance, db: DB, tmux: Tmux): void {
     let closing = false;
     const audit = inputAudit(db, "terminal.input", (req as { device?: Device }).device?.id ?? null, id);
 
-    term.onData((data) => {
-      if (socket.readyState === socket.OPEN) socket.send(data);
-    });
+    pipePty(term, socket); // pauses the pty while the phone lags (69 R10)
     // The tmux session ended under us (shell exited) → tell the client it's over.
     term.onExit(() => {
       if (!closing && socket.readyState === socket.OPEN) socket.close(4404, "session ended");

@@ -23,6 +23,7 @@ import { logEvent } from "./auth.js";
 import { Mirror, realVcTmux, resolveExternal, type VcTmux } from "./external.js";
 import { maxLive } from "./sessions.js";
 import { parseClientFrame, parseResize } from "./ws-frames.js";
+import { pipePty } from "./backpressure.js";
 
 const PING_MS = 15_000;
 
@@ -209,9 +210,7 @@ export function registerSessionWs(
     const term = vc.attach(pane, 80, 24);
     let closing = false;
     const audit = inputAudit(db, "external.tty.input", (req as { device?: Device }).device?.id ?? null, id);
-    term.onData((data) => {
-      if (socket.readyState === socket.OPEN) socket.send(data);
-    });
+    pipePty(term, socket); // pauses the pty while the phone lags (69 R10)
     term.onExit(() => {
       if (!closing && socket.readyState === socket.OPEN) socket.close(4404, "session ended");
     });
