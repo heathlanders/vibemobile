@@ -74,3 +74,14 @@ About 1,150 test cases exist and none run on a pull request. Facts gathered 2026
   names, effort levels) stay where they were. Tests: `session-ws.test.ts` (non-object and
   mistyped frames, no rejection, socket keeps working; red on old code), `ws-frames.test.ts`
   (shape table). Route bodies are next, as files are touched.
+- **Q5** (2026-11-19). 23 widget tests, no `lib/` change, no bug found:
+  `pairing_screen_test.dart` (form; empty code makes no request; 401 shows the server error and
+  stores nothing; unreachable server; good code stores creds and re-reads `credsProvider`, against a
+  real local server), `update_install_test.dart` (checksum match/mismatch/404 at `UpdateApi`;
+  controller no-ops on an unsupported platform; `UpdateDialog` install / error + Retry / progress /
+  manual Windows download / Later; `UpdateHost` asks only when newer), `terminal_screen_test.dart`
+  (unreachable → connecting banner, never Live; close X confirm; no close on the CLI tty view).
+  Gap: `UpdateController` reads `Platform.isAndroid/isWindows` directly, so its real
+  "newer build → install → error" path can't run on the Linux test host without making the platform
+  injectable; the installers (`OpenFilex`, `Process`, `exit`) are untested. Written by the
+  `implementer` agent, reviewed and re-run here (548/548, analyze clean).
