@@ -60,4 +60,13 @@ works without it.
 
 ## What shipped
 
-(fill in per step)
+- **C1** (2026-11-19). `sendUser` on a controller that is not `live` (connecting, reconnecting,
+  backgrounded) puts the turn (text + attachment ids) on `_queued` and shows the bubble as
+  "Queued · sends when reconnected" (`ChatMessage.queued`, never cached). The queue flushes after
+  the next `history` frame instead of on connect, because the replay cleared the bubbles (this
+  also fixes `sendWhenLive` turns vanishing). `_pause` now leaves `live`, so a send while
+  backgrounded queues instead of going to a closed socket. The composer clears as before:
+  every non-empty send is now accepted. Test: `chat_offline_send_test.dart` against a real local
+  WebSocket server that drops mid-session (old code: turn never delivered). Six older tests that
+  drove `sendUser` on a bare controller now mark it `live` first. Not checked on a device yet
+  (airplane-mode send).

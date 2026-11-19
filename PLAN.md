@@ -178,7 +178,7 @@ proposal's *What shipped* when merged.
 - [x] 68 A1: close a device's sockets on revoke (4401)
 - [x] 68 A4: global `/pair` attempt cap
 - [ ] 68 A4 ops (owner): confirm nothing uses the raw TCP forward, then remove it (private ops note)
-- [ ] 70 C1: queue sends while disconnected
+- [x] 70 C1: queue sends while disconnected
 - [ ] 70 C2: auth failure from close code / REST probe, not text match
 - [ ] 70 C3: shared Dio with timeouts
 - [ ] 70 C4: confirm before ending a session

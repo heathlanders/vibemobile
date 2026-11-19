@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vibemobile/core/reconnect.dart';
 import 'package:vibemobile/features/chat/domain/chat_message.dart';
 import 'package:vibemobile/features/chat/presentation/chat_session_controller.dart';
 
@@ -173,6 +174,7 @@ void main() {
 
   test('resendUser supersedes the original and appends a verbatim turn (proposal 11)', () {
     final c = controller();
+    c.state = ConnState.live; // as if connected; the socket itself is never needed
     c.sendUser('frist'); // typo
     final original = c.messages.single;
     expect(original.superseded, false);
@@ -196,6 +198,7 @@ void main() {
 
   test('result frame updates session cost and clears busy (proposals 03, 09)', () {
     final c = controller();
+    c.state = ConnState.live;
     c.sendUser('hi'); // socket null, but busy flips true
     expect(c.busy, true);
     c.applyFrame({'t': 'result', 'subtype': 'success', 'cost': 0.01, 'sessionCost': 0.42});
@@ -262,6 +265,7 @@ void main() {
 
   test('mirroring a CLI session: external/user_turn frames, no local echo (ADR 0012)', () {
     final c = controller();
+    c.state = ConnState.live;
     c.applyFrame({'t': 'history', 'messages': []});
     c.applyFrame({'t': 'external', 'status': 'busy', 'canReply': true});
     expect(c.external?.canReply, true);

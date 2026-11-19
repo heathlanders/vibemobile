@@ -1446,7 +1446,7 @@ class _Bubble extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: Spacing.xs),
             child: Text(
-              fmtMessageTime(message.at, DateTime.now()),
+              message.queued ? 'Queued · sends when reconnected' : fmtMessageTime(message.at, DateTime.now()),
               style: Theme.of(context).textTheme.labelSmall?.copyWith(color: scheme.outline),
             ),
           ),
