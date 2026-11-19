@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../sessions/domain/session.dart';
+import '../../../core/providers.dart';
 
 /// Result of `POST /sessions/:id/fork` (proposal 42). A failure carries the daemon's short,
 /// generic message in [error].
@@ -30,7 +31,7 @@ class ForkApi {
 
   /// [at] `after` keeps the chosen turn and its reply; `before` keeps only what precedes it.
   Future<ForkResult> fork(String sessionId, String messageId, {required String at}) async {
-    final res = await _dio.post<Map<String, dynamic>>('/sessions/$sessionId/fork', data: {'messageId': messageId, 'at': at});
+    final res = await _dio.post<Map<String, dynamic>>('/sessions/$sessionId/fork', data: {'messageId': messageId, 'at': at}, options: slowCall());
     return ForkResult.fromResponse(res.statusCode, res.data);
   }
 }

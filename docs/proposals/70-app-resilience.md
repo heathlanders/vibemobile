@@ -77,3 +77,13 @@ works without it.
   the exception text carries the URL, so a hex session id containing "401"/"403" re-paired on any
   failed upgrade. Test: `auth_probe_test.dart` against a real local server (session id
   `s_c4013a` + 500 → no re-pair, red on old code; 401 probe → re-pair).
+- **C3** (2026-11-19). `dioFor` now returns one cached `Dio` per base URL + token (a re-pair gets
+  a new one) with connect 10 s / receive 30 s. No Riverpod provider: caching inside `dioFor` gives
+  the same sharing without touching the 68 call sites. Dio 5.9's `receiveTimeout` bounds the wait
+  for response headers and the gaps between chunks, not the whole transfer, so uploads and downloads
+  keep working on the default. Calls that can run longer (git stage/commit/branch, CI via `gh`,
+  fork, rewind, session create with a worktree, session delete, prune, task dispatch, merge
+  approve, project create) pass `slowCall()` (5 min). The list came from a `scoper` pass over
+  the daemon routes. Improve keeps its own 90 s. Tests: `dio_for_test.dart` (shared instance +
+  timeouts, red on old code; a black-hole TCP host fails with `receiveTimeout`). Not covered: a
+  widget test that a screen shows its error state on timeout.

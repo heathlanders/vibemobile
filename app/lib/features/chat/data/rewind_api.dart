@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import '../../../core/providers.dart';
 
 /// Result of `POST /sessions/:id/rewind` (ADR 0023, session-rest.md).
 /// [statusCode] is kept so the sheet can word 403/404/409 distinctly; a failed
@@ -50,6 +51,7 @@ class RewindApi {
     final res = await _dio.post<Map<String, dynamic>>(
       '/sessions/$sessionId/rewind',
       data: {'messageId': messageId, 'dryRun': dryRun},
+      options: slowCall(),
     );
     return RewindResult.fromResponse(res.statusCode ?? 0, res.data);
   }

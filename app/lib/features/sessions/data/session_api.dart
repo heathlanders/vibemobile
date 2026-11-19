@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import '../../../core/chat_settings.dart';
+import '../../../core/providers.dart';
 import '../../chat/domain/session_mode.dart';
 import '../domain/session.dart';
 
@@ -80,6 +81,7 @@ class SessionApi {
         'mode': ?startMode?.wire,
         if (worktree) 'worktree': true,
       },
+      options: slowCall(), // a worktree create runs git
     );
     // dio's validateStatus lets 4xx through (see dioFor), so a cap/validation
     // error arrives as a body without `id` — surface it instead of cast-crashing.
@@ -128,7 +130,7 @@ class SessionApi {
   /// Ends + removes the session. Returns where its worktree was left on the server
   /// when it held work that was worth keeping (ADR 0022), else null.
   Future<WorktreeKept?> delete(String sessionId) async {
-    final res = await _dio.delete<Map<String, dynamic>>('/sessions/$sessionId');
+    final res = await _dio.delete<Map<String, dynamic>>('/sessions/$sessionId', options: slowCall());
     final d = res.data;
     return res.statusCode == 200 && d != null && d['kept'] == true ? WorktreeKept.fromJson(d) : null;
   }
@@ -139,6 +141,7 @@ class SessionApi {
     final res = await _dio.post<Map<String, dynamic>>(
       '/sessions/prune',
       data: {'project_id': projectId, 'older_than_days': ?olderThanDays},
+      options: slowCall(),
     );
     final data = res.data;
     if (data == null || data['deleted'] == null) {

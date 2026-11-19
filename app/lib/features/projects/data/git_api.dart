@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import '../../../core/providers.dart';
 
 /// One entry from `git status --porcelain` — [index]/[worktree] are the two
 /// status characters (' ', 'M', 'A', 'D', '?', …).
@@ -116,17 +117,17 @@ class GitApi {
 
   /// Stage exactly [paths] (literal, repo-relative). Never sends `allowSensitive`.
   Future<GitWriteResult> stage(String sessionId, List<String> paths) async {
-    final res = await _dio.post<Map<String, dynamic>>('/sessions/$sessionId/git/stage', data: {'paths': paths});
+    final res = await _dio.post<Map<String, dynamic>>('/sessions/$sessionId/git/stage', data: {'paths': paths}, options: slowCall());
     return GitWriteResult.fromResponse(res.statusCode, res.data);
   }
 
   Future<GitWriteResult> commit(String sessionId, String message) async {
-    final res = await _dio.post<Map<String, dynamic>>('/sessions/$sessionId/git/commit', data: {'message': message});
+    final res = await _dio.post<Map<String, dynamic>>('/sessions/$sessionId/git/commit', data: {'message': message}, options: slowCall());
     return GitWriteResult.fromResponse(res.statusCode, res.data);
   }
 
   Future<GitWriteResult> branch(String sessionId, String name) async {
-    final res = await _dio.post<Map<String, dynamic>>('/sessions/$sessionId/git/branch', data: {'name': name});
+    final res = await _dio.post<Map<String, dynamic>>('/sessions/$sessionId/git/branch', data: {'name': name}, options: slowCall());
     return GitWriteResult.fromResponse(res.statusCode, res.data);
   }
 }
