@@ -31,7 +31,10 @@ export function registerPtyWs(app: FastifyInstance, db: DB, tmux: Tmux): void {
       return;
     }
 
+    // Revoked (or dropped) while we awaited: never attach a closing socket (proposal 68 A1).
+    if (socket.readyState !== socket.OPEN) return;
     await tmux.detachOthers(id); // sole live client (resize safety, reattach.md)
+    if (socket.readyState !== socket.OPEN) return;
     const term = tmux.attach(id, 80, 24); // client resizes immediately on attach
     db.prepare("UPDATE sessions SET status = 'live' WHERE id = ?").run(id);
 

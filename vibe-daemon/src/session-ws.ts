@@ -95,7 +95,7 @@ export function registerSessionWs(
     let closed = false;
     const ready: Promise<EngineSession | Mirror | null> = resolveExternal(row.claude_session_id, projectPath(row), vc).then(
       (ext) => {
-        if (closed) return null;
+        if (closed || socket.readyState !== socket.OPEN) return null; // dropped or revoked while resolving
         if (ext) {
           // An in-daemon loop on the same transcript would be a second writer.
           registry.get(row.id)?.stop();
@@ -136,7 +136,7 @@ export function registerSessionWs(
         return;
       }
       void ready.then((session) => {
-        if (!session) return;
+        if (!session || socket.readyState !== socket.OPEN) return; // a frame queued before a revoke never runs
         if (session instanceof Mirror) {
           if (f.t === "user" && typeof f.text === "string") {
             const images = Array.isArray(f.images) ? f.images.filter((x: any) => typeof x === "string") : [];
@@ -201,6 +201,7 @@ export function registerSessionWs(
       socket.close(4404, "no running vc session");
       return;
     }
+    if (socket.readyState !== socket.OPEN) return; // revoked while we awaited (proposal 68 A1)
     logEvent(db, "external.tty", (req as { device?: Device }).device?.id ?? null, id);
     const term = vc.attach(pane, 80, 24);
     let closing = false;

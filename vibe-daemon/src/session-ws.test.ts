@@ -127,6 +127,32 @@ test("claude WS: attach → user → deltas → permission → result", async (t
   ws.close();
 });
 
+test("claude WS: revoking the device closes its chat socket 4401 (proposal 68 A1)", async (t) => {
+  const { db, app, port, token } = await bootApp();
+  t.after(() => app.close());
+  const owner = (
+    await app.inject({ method: "POST", url: "/pair", payload: { code: createPairingCode(db), device_name: "o" } })
+  ).json();
+  const me = (await app.inject({ method: "GET", url: "/devices", headers: { authorization: `Bearer ${token}` } }))
+    .json()
+    .find((d: any) => d.current).id;
+  const id = (
+    await app.inject({
+      method: "POST",
+      url: "/sessions",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { project_id: "p_ok", kind: "claude" },
+    })
+  ).json().id;
+
+  const { ws, frames } = connect(port, id, token);
+  await waitFor(() => frames.some((f) => f.t === "history"));
+  const closed = new Promise<number>((res) => ws.on("close", (c) => res(c)));
+  const del = await app.inject({ method: "DELETE", url: `/devices/${me}`, headers: { authorization: `Bearer ${owner.token}` } });
+  assert.equal(del.statusCode, 204);
+  assert.equal(await closed, 4401);
+});
+
 test("claude WS: initialPrompt primes the first turn atomically (proposal 15)", async (t) => {
   const { app, port, token, db } = await bootApp();
   t.after(() => app.close());
