@@ -143,8 +143,10 @@ export async function buildApp(
     "/pair",
     { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
     async (req, reply) => {
-      const { code, device_name } = (req.body ?? {}) as { code?: string; device_name?: string };
-      if (!code || !device_name) return reply.code(400).send({ error: "code and device_name required" });
+      const { code, device_name: rawName } = (req.body ?? {}) as { code?: unknown; device_name?: unknown };
+      // Strings only; the name is stored and logged, so it is capped (proposal 68 A5).
+      const device_name = typeof rawName === "string" ? rawName.trim().slice(0, 64) : "";
+      if (typeof code !== "string" || !code || !device_name) return reply.code(400).send({ error: "code and device_name required" });
       const result = pairDevice(db, code, device_name);
       if (!result) {
         recordPairFailure(db, device_name);

@@ -86,3 +86,9 @@ Work in this order; each step is one small PR with its tests.
   `GET /devices` returns `expired_at` (the app does not show it yet). No rotation. Tests:
   `auth.test.ts` (61 days → 401 + marked; 59 days → 200; sticks after `last_seen` is touched;
   never-used device by `paired_at`; red on old code).
+- **A5–A8** (2026-11-19). A5: `/pair` takes strings only and caps `device_name` at 64 chars
+  (trimmed) before storing or logging it. A6: `/sessions/:id/file` applies the browser's
+  `looksSecret` rule (403) and reads at most the cap instead of the whole file. A7: native tools
+  resolve the real path (`canonical`, symlinks followed) before `pathInRoots`, and operate on that
+  path. A8: `openDb` chmods the DB and any `-wal`/`-shm` to 600. Tests: `hardening.test.ts`, one
+  per item, all red on old code.

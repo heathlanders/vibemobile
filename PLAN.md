@@ -208,7 +208,7 @@ proposal's *What shipped* when merged.
 **Auth lifecycle ([68](docs/proposals/68-daemon-auth-hardening.md)).**
 - [ ] 68 A3: ADR + box-side confirmation for pair-code mint and revoking another device; `reviewer` pass
 - [x] 68 A2: 60-day idle token expiry
-- [ ] 68 A5–A8: name cap, file-edits cap + secret check, symlink re-check, DB mode 600
+- [x] 68 A5–A8: name cap, file-edits cap + secret check, symlink re-check, DB mode 600
 
 **App polish and client security ([70](docs/proposals/70-app-resilience.md), [71](docs/proposals/71-client-security.md)).**
 - [ ] 70 C5 + C6: draft persistence; newline on phone

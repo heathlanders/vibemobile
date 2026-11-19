@@ -13,6 +13,7 @@ import { resolve, join, relative } from "node:path";
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import { pathInRoots } from "./paths.js";
+import { canonical } from "./file-scope.js";
 import type { PermissionGate } from "./permission-gate.js";
 
 // Capability dial (VIBE_NATIVE_TIER): 1 = chat only, 2 = + read-only tools (default),
@@ -28,11 +29,12 @@ const MAX_WALK_FILES = 5_000;
 
 type Send = (frame: Record<string, unknown>) => void;
 
-// Resolve a tool path arg against the session cwd and enforce the root scope. Returns
-// the absolute path, or null if it escapes the project roots (caller returns a denial).
+// Resolve a tool path arg against the session cwd and enforce the root scope on the
+// REAL path (symlinks followed, proposal 68 A7): a link inside the project pointing
+// out is denied. Returns that real path, or null (caller returns a denial).
 function scoped(cwd: string, p: string | undefined): string | null {
-  const abs = resolve(cwd, p ?? ".");
-  return pathInRoots(abs) ? abs : null;
+  const real = canonical(resolve(cwd, p ?? "."));
+  return pathInRoots(real) ? real : null;
 }
 
 // Wrap an execute() in the permission gate: ask first, deny short-circuits. The gate

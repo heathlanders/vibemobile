@@ -9,12 +9,13 @@
 // No silent truncation anywhere: every cut appends a visible marker line and
 // sets `truncated: true` (proposal 02 invariant).
 
-import { readFile, realpath, stat } from "node:fs/promises";
+import { open, realpath, stat } from "node:fs/promises";
 import { relative, resolve, isAbsolute } from "node:path";
 import type { FastifyInstance } from "fastify";
 import type { DB } from "./db.js";
 import { logEvent, type Device } from "./auth.js";
 import { pathInRoots } from "./paths.js";
+import { looksSecret } from "./browse.js";
 // Diff rendering lives in diff-preview.ts — shared with the permission gate, so
 // a pre-approval preview and this post-hoc view are the same code (proposal 02).
 import { buildEditDiff, type EditOp } from "./diff-preview.js";
@@ -170,12 +171,21 @@ export function registerFileEditRoutes(app: FastifyInstance, db: DB): void {
       return reply.code(404).send({ error: "file not found" });
     }
     if (!pathInRoots(real)) return reply.code(403).send({ error: "path out of bounds" });
+    // Same secret-name rule as the file browser (proposal 68 A6): an agent editing .env
+    // doesn't make its contents viewable from the phone.
+    if (looksSecret(real)) return reply.code(403).send({ error: "this file looks like a secret and is not shown" });
     const st = await stat(real);
     if (!st.isFile()) return reply.code(404).send({ error: "not a regular file" });
 
-    const buf = await readFile(real);
-    const truncated = buf.length > MAX_FILE_BYTES;
-    const slice = truncated ? buf.subarray(0, MAX_FILE_BYTES) : buf;
+    // Read at most the cap, never the whole file.
+    const fh = await open(real, "r");
+    const slice = Buffer.alloc(Math.min(st.size, MAX_FILE_BYTES));
+    try {
+      await fh.read(slice, 0, slice.length, 0);
+    } finally {
+      await fh.close();
+    }
+    const truncated = st.size > MAX_FILE_BYTES;
     if (slice.subarray(0, 8192).includes(0)) return reply.code(415).send({ error: "binary file" });
 
     logEvent(db, "file.read", (req as { device?: Device }).device?.id ?? null, `${id}:${path}`);
