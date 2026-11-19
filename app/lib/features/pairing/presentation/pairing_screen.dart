@@ -8,6 +8,7 @@ import '../../../core/providers.dart';
 import '../../../core/spacing.dart';
 import '../../notifications/data/push_service.dart';
 import '../data/auth_api.dart';
+import '../domain/pairing_url.dart';
 
 /// First-run onboarding: enter the daemon URL + a one-time pairing code, exchange
 /// it for a device token, store it. On success invalidates [credsProvider] so the
@@ -46,6 +47,11 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
     final name = _deviceName.text.trim();
     if (baseUrl.isEmpty || code.isEmpty || name.isEmpty) {
       setState(() => _error = 'All fields are required.');
+      return;
+    }
+    final urlError = pairingUrlError(baseUrl); // https only (proposal 71 S4)
+    if (urlError != null) {
+      setState(() => _error = urlError);
       return;
     }
     setState(() {

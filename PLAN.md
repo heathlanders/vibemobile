@@ -218,7 +218,7 @@ proposal's *What shipped* when merged.
 - [x] 70 C10 + C11: readable errors, Retry now, full tool output
 - [ ] 71 S1: signed update manifest (two-release rollout); `reviewer` pass
 - [ ] 71 S2: no Android backup; transcript cache in private files, pruned
-- [ ] 71 S4: https-only pairing
+- [x] 71 S4: https-only pairing
 - [ ] 71 S3: optional app lock
 
 **On-device verification sweep.** Built but never checked on a device. Per row: test on the

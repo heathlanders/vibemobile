@@ -105,6 +105,14 @@ void main() {
     expect(store.saved, isEmpty);
   });
 
+  testWidgets('an http:// tailnet address is refused before any request (71 S4)', (tester) async {
+    await pump(tester);
+    await fill(tester, url: 'http://box.tailnet.ts.net:8088', code: 'AAAA-BBBB');
+    await tapPair(tester);
+    expect(find.text('Use the https:// address: pairing sends your device token.'), findsOneWidget);
+    expect(store.saved, isEmpty);
+  });
+
   testWidgets('a rejected code shows the server error and stores nothing', (tester) async {
     final s = await tester.runAsync(() => daemon(401, {'error': 'invalid or expired code'}));
     await pump(tester);

@@ -48,4 +48,9 @@ Findings read in code on 2026-11-19 (v1.0.40). Paths under `app/` unless noted.
 
 ## What shipped
 
-(fill in per step)
+- **S4** (2026-11-19). `pairing/domain/pairing_url.dart` `pairingUrlError`: pairing accepts only
+  `https://` with a host; debug builds may also use `http://localhost` / `http://127.0.0.1`.
+  Checked before any request. QR pairing not done (optional per this proposal). To know: the box
+  also serves the daemon on a plain-`http` tailnet port; pairing through that URL is now refused
+  (existing devices keep working; re-pair with the `https://` address). Tests:
+  `pairing_url_test.dart`, plus a screen case in `pairing_screen_test.dart` (red on old code).
