@@ -116,3 +116,11 @@ Order = value per hour. One PR per step.
   per `EXPLAIN QUERY PLAN`; per-kind retention; backup valid + 600 + keep 7 + only our files;
   failed backup leaves the same-day file; 50k-row prune on a real WAL file vacuums). Untested:
   the 03:30 scheduling. Ops: set `VIBE_BACKUP_DIR` (PLAN line).
+- **R6** (2026-11-19). Every `PermissionGate` decision (auto_allow, out_of_scope, allow, deny,
+  timeout, the auto-allow flush) logs `<session>:<tool>:<summary>`: the Bash `command`, else the
+  first of `file_path`/`notebook_path`/`path`/`url`/`pattern`/`query`, whitespace collapsed, 200
+  chars max; tools with none keep `<session>:<tool>`. The audit screen shows the string as-is; no
+  parser depended on the old format. `docs/security.md` #5 now says what is not covered: terminal
+  keystrokes (by design) and mirrored CLI sessions. Test: `permission-gate.test.ts` (red on old
+  code). Side effect to know: a command with a secret in it now lands in `events` too (it was
+  already in the transcript); R7 keeps those rows 90 days.

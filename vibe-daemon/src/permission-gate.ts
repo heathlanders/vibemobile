@@ -25,6 +25,17 @@ export type PermissionDecision =
 
 type Pending = { resolve: (r: PermissionDecision) => void; req: Record<string, unknown> };
 
+// What the call does, for the audit log (proposal 69 R6; security.md #5): the Bash
+// command, or the path / URL / pattern a tool acts on. One line, 200 chars max —
+// enough to tell what ran; the full input lives in the transcript.
+const AUDIT_FIELDS = ["command", "file_path", "notebook_path", "path", "url", "pattern", "query"];
+export function auditDetail(sessionId: string, toolName: string, input: Record<string, unknown>): string {
+  const field = AUDIT_FIELDS.find((k) => typeof input[k] === "string" && (input[k] as string).trim());
+  if (!field) return `${sessionId}:${toolName}`;
+  const summary = (input[field] as string).replace(/\s+/g, " ").trim().slice(0, 200);
+  return `${sessionId}:${toolName}:${summary}`;
+}
+
 export class PermissionGate {
   private pending = new Map<string, Pending>();
   private autoAllow = true; // default ON (claude-ws.md)
@@ -59,10 +70,10 @@ export class PermissionGate {
   ): Promise<PermissionDecision> {
     if (this.autoAllow) {
       if (this.inScope(toolName, input)) {
-        logEvent(this.db, "permission.auto_allow", null, `${this.sessionId}:${toolName}`);
+        logEvent(this.db, "permission.auto_allow", null, auditDetail(this.sessionId, toolName, input));
         return Promise.resolve({ behavior: "allow", updatedInput: input });
       }
-      logEvent(this.db, "permission.out_of_scope", null, `${this.sessionId}:${toolName}`);
+      logEvent(this.db, "permission.out_of_scope", null, auditDetail(this.sessionId, toolName, input));
     }
     const toolUseID = opts?.toolUseID ?? randomUUID();
     const req = {
@@ -85,7 +96,7 @@ export class PermissionGate {
       this.onRequest();
       setTimeout(() => {
         if (this.pending.delete(toolUseID)) {
-          logEvent(this.db, "permission.timeout", null, `${this.sessionId}:${toolName}`);
+          logEvent(this.db, "permission.timeout", null, auditDetail(this.sessionId, toolName, input));
           this.send({ t: "permission_closed", toolUseID }); // other devices drop the card
           resolve({ behavior: "deny", message: "Approval timed out" });
         }
@@ -107,7 +118,7 @@ export class PermissionGate {
       this.db,
       allow ? "permission.allow" : "permission.deny",
       deviceId,
-      `${this.sessionId}:${p.req.toolName as string}`,
+      auditDetail(this.sessionId, p.req.toolName as string, p.req.input as Record<string, unknown>),
     );
     p.resolve(
       allow
@@ -124,7 +135,7 @@ export class PermissionGate {
     if (!on) return;
     for (const [toolUseID, p] of this.pending) {
       this.pending.delete(toolUseID);
-      logEvent(this.db, "permission.auto_allow", null, `${this.sessionId}:${p.req.toolName as string}`);
+      logEvent(this.db, "permission.auto_allow", null, auditDetail(this.sessionId, p.req.toolName as string, p.req.input as Record<string, unknown>));
       this.send({ t: "permission_closed", toolUseID });
       p.resolve({ behavior: "allow", updatedInput: p.req.input as Record<string, unknown> });
     }

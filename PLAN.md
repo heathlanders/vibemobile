@@ -198,7 +198,7 @@ proposal's *What shipped* when merged.
 - [x] 69 R3: SDK loop crash removes the session (test first)
 - [x] 69 R8 + R7: `messages` index, retention, vacuum, nightly backup (`tool_use_id` deferred)
 - [ ] 69 R7 ops (owner): set `VIBE_BACKUP_DIR` to a dedicated dir under the backups disk in the live unit
-- [ ] 69 R6: audit log records command text; `security.md` corrected
+- [x] 69 R6: audit log records command text; `security.md` corrected
 - [ ] 69 R4: spike — does tmux survive a daemon restart? fix if not
 - [ ] 69 R11: commit the real unit with memory caps; Node 20+ (do last in a session)
 - [ ] 69 R10: backpressure on PTY and chat sockets
