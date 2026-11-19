@@ -162,6 +162,77 @@ Status and next steps are in `docs/milestones.md` → "Desktop client".
 - [x] Composer keyboard refocus after Improve; widget tests
 - [x] On-device check: phone keyboard comes back; improve a Claude reply (1.0.35)
 
+**Idea Scout ([proposal 66](docs/proposals/66-idea-scout.md)).**
+- [x] `signals.py` scanner + skill pipeline; SDK session loads the skill and `researcher`
+- [ ] First full run: report reviewed, spend per run recorded
+- [ ] Monthly Schedule from the app; "Run now" ends with the done push
+
+### Review 2026-11-19 — fix the base before new features
+
+Work these top to bottom, one box per session. Each box = one PR with its tests. Details,
+file pointers and acceptance tests are in the linked proposal; tick the box and fill the
+proposal's *What shipped* when merged.
+
+**Stop the bleeding ([68](docs/proposals/68-daemon-auth-hardening.md), [69](docs/proposals/69-daemon-reliability-ops.md), [70](docs/proposals/70-app-resilience.md)).**
+- [ ] 69 R1: PTY frame guard + process-level error handlers
+- [ ] 68 A1: close a device's sockets on revoke (4401)
+- [ ] 68 A4: global `/pair` attempt cap; ops: remove any raw TCP forward (private ops note)
+- [ ] 70 C1: queue sends while disconnected
+- [ ] 70 C2: auth failure from close code / REST probe, not text match
+- [ ] 70 C3: shared Dio with timeouts
+- [ ] 70 C4: confirm before ending a session
+
+**CI ([72](docs/proposals/72-ci-and-release-hygiene.md)).**
+- [ ] 72 Q1: `ci.yml` runs analyze + tests for app and daemon; required on main
+- [ ] 72 Q2: daemon `tsconfig.json` + `typecheck`, clean, in CI
+- [ ] 72 Q4: `release.sh` builds before tagging; `--rollback`
+- [ ] 72 Q3: zod schemas on incoming WS frames
+- [ ] 72 Q5: widget tests for pairing, updater, terminal
+- [ ] 72 Q6: license decision (owner)
+
+**Daemon reliability ([69](docs/proposals/69-daemon-reliability-ops.md)).**
+- [ ] 69 R5: logger, error handler, graceful stop, real `/health`
+- [ ] 69 R2: reaper skips running turns and pending dialogs
+- [ ] 69 R3: SDK loop crash removes the session (test first)
+- [ ] 69 R8 + R7: `messages` index, `tool_use_id`, retention, vacuum, nightly backup
+- [ ] 69 R6: audit log records command text; `security.md` corrected
+- [ ] 69 R4: spike — does tmux survive a daemon restart? fix if not
+- [ ] 69 R11: commit the real unit with memory caps; Node 20+ (do last in a session)
+- [ ] 69 R10: backpressure on PTY and chat sockets
+- [ ] 69 R9: Bash ask-list in Auto mode; `reviewer` pass
+- [ ] 69 R12: spikes out of `src/`
+
+**Auth lifecycle ([68](docs/proposals/68-daemon-auth-hardening.md)).**
+- [ ] 68 A3: ADR + box-side confirmation for pair-code mint and revoking another device; `reviewer` pass
+- [ ] 68 A2: 60-day idle token expiry
+- [ ] 68 A5–A8: name cap, file-edits cap + secret check, symlink re-check, DB mode 600
+
+**App polish and client security ([70](docs/proposals/70-app-resilience.md), [71](docs/proposals/71-client-security.md)).**
+- [ ] 70 C5 + C6: draft persistence; newline on phone
+- [ ] 70 C9: bad frame skipped, not thrown
+- [ ] 70 C7: memoize + throttle streaming rebuilds (measure before/after)
+- [ ] 70 C8: desktop minimize keeps sockets (repro first)
+- [ ] 70 C10 + C11: readable errors, Retry now, full tool output
+- [ ] 71 S1: signed update manifest (two-release rollout); `reviewer` pass
+- [ ] 71 S2: no Android backup; transcript cache in private files, pruned
+- [ ] 71 S4: https-only pairing
+- [ ] 71 S3: optional app lock
+
+**On-device verification sweep.** Built but never checked on a device. Per row: test on the
+phone (and Windows where it applies), fix what breaks, set the proposal and its README row to
+`shipped` or back to `building` with the defect named.
+- [ ] Chat rendering: 32 status line, 33 images, 34 links, 35 markdown, 36 thinking, 47 paste collapse, 48 file links, 57 timestamps
+- [ ] Session controls: 25 modes, 37 model switch, 39 effort, 40 context/compact, 41 slash commands, 42 branch, 43 MCP
+- [ ] Files and git: 45 PR/CI status, 46 file browser, 59 >5 MiB binary round trip
+- [ ] Terminal: 38 key row
+- [ ] Notes and prompts: 31 notes, 56 inbox batch, 61 rule packs
+- [ ] Desktop: 49 non-maximized window, 55 mouse back/forward
+- [ ] Swarm and limits: 65 tasks + leases, 67 continue after limit (real limit hit)
+- [ ] Fix status drift in `docs/proposals/README.md` (59, 67; only vocabulary statuses)
+
+**After the base is fixed:** pick from [73](docs/proposals/73-post-review-direction.md). Code
+editor phases (proposal 60) wait until then.
+
 ## 7. Open questions / risks
 
 - **Agent SDK auth:** confirm SDK uses your existing `claude` CLI login/credentials
