@@ -17,6 +17,8 @@ import { inputAudit } from "./input-audit.js";
 
 const PING_MS = 15_000;
 
+const validSize = (n: unknown): n is number => Number.isInteger(n) && (n as number) > 0 && (n as number) <= 1000;
+
 export function registerPtyWs(app: FastifyInstance, db: DB, tmux: Tmux): void {
   app.get("/pty/:id", { websocket: true }, async (socket: WebSocket, req) => {
     const { id } = req.params as { id: string };
@@ -51,8 +53,12 @@ export function registerPtyWs(app: FastifyInstance, db: DB, tmux: Tmux): void {
         audit.add(body.length); // size only — never the keystrokes
         term.write(body.toString("utf8"));
       } else if (op === "1") {
-        const { cols, rows } = JSON.parse(body.toString("utf8"));
-        term.resize(cols, rows);
+        try {
+          const { cols, rows } = JSON.parse(body.toString("utf8"));
+          if (validSize(cols) && validSize(rows)) term.resize(cols, rows);
+        } catch {
+          // malformed resize — ignore (an uncaught throw here kills the daemon)
+        }
       }
     });
 

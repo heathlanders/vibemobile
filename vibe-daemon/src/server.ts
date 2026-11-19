@@ -16,6 +16,11 @@ import { recoverMergeQueue } from "./merge-queue.js";
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.PORT ?? 8787);
 
+// One bad handler must not take down the daemon and every SDK subprocess with it:
+// log and keep serving (proposal 69 R1).
+process.on("uncaughtException", (err) => console.error("[vibe-daemon] uncaughtException", err));
+process.on("unhandledRejection", (err) => console.error("[vibe-daemon] unhandledRejection", err));
+
 const db = openDb();
 const tmux = realTmux();
 await tmux.ensureGlobals(); // tmux -L vibe globals before any session create
