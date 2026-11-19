@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
-# Cut a release (proposal 51): bump the version, tag and push, build the signed
-# APK here, fetch the Windows zip from GitHub Actions, and publish both to the
-# release dir that `tailscale serve --set-path /dl` exposes on the tailnet.
+# Cut a release (proposal 51): bump the version, build the signed APK here, then
+# commit, tag and push (a failed build leaves no tag, proposal 72 Q4), fetch the
+# Windows zip from GitHub Actions, and publish both to the release dir that
+# `tailscale serve --set-path /dl` exposes on the tailnet.
 #
 #   scripts/release.sh 1.0.18 [--notes "text"] [--skip-apk] [--skip-windows]
+#   scripts/release.sh --rollback 1.0.17   # repoint latest.json at a retained older build
 #
 # Env: VIBE_RELEASE_DIR (default /data/volumes/vibemobile/releases), FLUTTER,
 #      VIBE_DL_URL (default https://<this machine's MagicDNS name>/dl).
 set -euo pipefail
 
-usage() { echo "usage: $0 <x.y.z> [--notes TEXT] [--skip-apk] [--skip-windows]" >&2; exit 2; }
+usage() { echo "usage: $0 <x.y.z> [--notes TEXT] [--skip-apk] [--skip-windows] | --rollback <x.y.z>" >&2; exit 2; }
 die() { echo "release: $*" >&2; exit 1; }
 
+rollback=0
+[ "${1:-}" = --rollback ] && { rollback=1; shift; }
 version="${1:-}"; [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || usage; shift
 notes="" apk=1 win=1
 while [ $# -gt 0 ]; do
@@ -30,32 +34,58 @@ tag="v$version"
 keep=5
 
 cd "$root"
+
+# Rollback: point latest.json at files still in $out. Clients only move to a higher
+# build, so this stops the bad build spreading; phones already on it stay there.
+if [ "$rollback" = 1 ]; then
+  [ $# -eq 0 ] || usage
+  build=$(git show "$tag:app/pubspec.yaml" 2>/dev/null | sed -n 's/^version: .*+\([0-9]*\)$/\1/p')
+  [ -n "$build" ] || die "no tag $tag (needed for its build number)"
+  entry() { [ -f "$out/$1" ] && jq -n --arg f "$1" --arg s "$(sha256sum "$out/$1" | cut -d' ' -f1)" '{file:$f,sha256:$s}' || echo null; }
+  apk_entry=$(entry "vibemobile-$version.apk")
+  win_entry=$(entry "vibemobile-windows-$version.zip")
+  [ "$apk_entry" != null ] || [ "$win_entry" != null ] || die "no retained files for $version in $out"
+  jq -n --arg v "$version" --argjson b "$build" --argjson a "$apk_entry" --argjson w "$win_entry" \
+    '{version:$v, build:$b, notes:"Rolled back", apk:$a, windows:$w}' > "$out/.latest.json.tmp"
+  mv "$out/.latest.json.tmp" "$out/latest.json"
+  echo "release: latest.json now points at $version (build $build)"
+  jq . "$out/latest.json"
+  exit 0
+fi
+
 [ "$(git branch --show-current)" = main ] || die "not on main"
 [ -z "$(git status --porcelain)" ] || die "working tree not clean"
 git fetch -q origin main --tags
 [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] || die "main is not in sync with origin/main"
 git rev-parse -q --verify "refs/tags/$tag" >/dev/null && die "tag $tag already exists"
 
-# 1. Bump pubspec: version x.y.z+N, build number always previous + 1.
-build=$(( $(sed -n 's/^version: .*+\([0-9]*\)$/\1/p' app/pubspec.yaml) + 1 ))
-sed -i "s/^version: .*/version: $version+$build/" app/pubspec.yaml
-git commit -qm "chore(release): $tag" app/pubspec.yaml
-git tag -a "$tag" -m "$tag"
-git push origin main "$tag"   # tag push starts .github/workflows/release-windows.yml
-echo "release: pushed $tag (build $build)"
-
 mkdir -p "$out"
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+
+# 1. Bump pubspec: version x.y.z+N, build number always previous + 1. Not committed
+#    until the APK builds, so a failed build leaves no commit and no tag.
+build=$(( $(sed -n 's/^version: .*+\([0-9]*\)$/\1/p' app/pubspec.yaml) + 1 ))
+sed -i "s/^version: .*/version: $version+$build/" app/pubspec.yaml
 
 # 2. APK, built here so the signing key never leaves this box.
 if [ "$apk" = 1 ]; then
   avail=$(awk '/MemAvailable/ {print int($2/1048576)}' /proc/meminfo)
   [ "$avail" -ge 4 ] || echo "release: warning: only ${avail}G RAM free (stop the mi-* docker stack if the build gets OOM-killed)" >&2
-  (cd app && "$flutter" build apk --release)
+  if ! (cd app && "$flutter" build apk --release); then
+    git checkout -q -- app/pubspec.yaml
+    die "APK build failed; nothing committed or tagged"
+  fi
   cp app/build/app/outputs/flutter-apk/app-release.apk "$tmp/vibemobile-$version.apk"
 fi
 
-# 3. Windows zip from the Actions run for this tag.
+# 3. Commit, tag, push. The tag push starts .github/workflows/release-windows.yml.
+git commit -qm "chore(release): $tag" app/pubspec.yaml
+git tag -a "$tag" -m "$tag"
+git push origin main "$tag"
+echo "release: pushed $tag (build $build)"
+untag="git push --delete origin $tag && git tag -d $tag"
+
+# 4. Windows zip from the Actions run for this tag. Nothing is published yet if it fails.
 if [ "$win" = 1 ]; then
   run=""
   for _ in $(seq 30); do
@@ -64,13 +94,14 @@ if [ "$win" = 1 ]; then
     [ -n "$run" ] && break
     sleep 10
   done
-  [ -n "$run" ] || die "no release-windows run found for $tag"
-  gh run watch "$run" --exit-status >/dev/null || die "Windows build failed: gh run view $run --log-failed"
+  [ -n "$run" ] || die "no release-windows run found for $tag. Nothing published; to drop the tag: $untag"
+  gh run watch "$run" --exit-status >/dev/null ||
+    die "Windows build failed: gh run view $run --log-failed. Nothing published; to drop the tag: $untag"
   gh run download "$run" -n vibemobile-windows -D "$tmp/win"
   mv "$tmp/win/vibemobile-windows.zip" "$tmp/vibemobile-windows-$version.zip"
 fi
 
-# 4. Publish: files first, latest.json last (atomic rename) so clients never
+# 5. Publish: files first, latest.json last (atomic rename) so clients never
 #    see a half-written release. A skipped platform keeps its previous entry.
 entry() { [ -f "$tmp/$1" ] && jq -n --arg f "$1" --arg s "$(sha256sum "$tmp/$1" | cut -d' ' -f1)" '{file:$f,sha256:$s}' || echo null; }
 apk_entry=$(entry "vibemobile-$version.apk")
