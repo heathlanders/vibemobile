@@ -193,7 +193,7 @@ proposal's *What shipped* when merged.
 - [ ] 72 Q6: license decision (owner)
 
 **Daemon reliability ([69](docs/proposals/69-daemon-reliability-ops.md)).**
-- [ ] 69 R5: logger, error handler, graceful stop, real `/health`
+- [x] 69 R5: logger, error handler, graceful stop, real `/health`
 - [ ] 69 R2: reaper skips running turns and pending dialogs
 - [ ] 69 R3: SDK loop crash removes the session (test first)
 - [ ] 69 R8 + R7: `messages` index, `tool_use_id`, retention, vacuum, nightly backup

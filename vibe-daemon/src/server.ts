@@ -12,6 +12,7 @@ import { startScheduler } from "./schedule.js";
 import { startContinuer } from "./limit.js";
 import { purgeInternalTranscriptRows } from "./discover.js";
 import { recoverMergeQueue } from "./merge-queue.js";
+import { stopDaemon } from "./shutdown.js";
 
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.PORT ?? 8787);
@@ -28,7 +29,7 @@ await tmux.sweepStale(db); // mark sessions whose tmux died (e.g. reboot) as sta
 purgeInternalTranscriptRows(db); // hide titler/Improve-prompt transcripts listed as sessions
 
 const registry: ClaudeRegistry = new Map();
-const app = await buildApp(db, tmux, registry);
+const app = await buildApp(db, tmux, registry, undefined, undefined, { logger: true });
 await app.listen({ host: HOST, port: PORT });
 await recoverMergeQueue({ db, registry }); // abort/clean items a restart left mid-rebase or mid-test, requeue them (ADR 0032 §3)
 startIdleReaper(registry, db); // evict detached, idle claude SDK subprocesses
@@ -38,3 +39,18 @@ startScheduler(db, registry); // scheduled prompts (proposal 44)
 startContinuer(db, registry); // continue sessions after the usage limit resets (proposal 67)
 startHookSocket(db, registry); // CLI-session pushes via a Claude Code hook (ADR 0014)
 console.log(`[vibe-daemon] listening http://${HOST}:${PORT} (localhost only)`);
+
+// systemd stop / Ctrl-C: close sockets 1012 and the DB cleanly; force out after 10 s.
+for (const sig of ["SIGTERM", "SIGINT"] as const) {
+  process.once(sig, () => {
+    console.log(`[vibe-daemon] ${sig}: stopping`);
+    setTimeout(() => process.exit(1), 10_000).unref();
+    stopDaemon(app, db).then(
+      () => process.exit(0),
+      (err) => {
+        console.error("[vibe-daemon] stop failed", err);
+        process.exit(1);
+      },
+    );
+  });
+}
