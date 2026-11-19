@@ -43,4 +43,9 @@ About 1,150 test cases exist and none run on a pull request. Facts gathered 2026
 
 ## What shipped
 
-(fill in per step)
+- **Q1** (2026-11-19). `.github/workflows/ci.yml` on PR and push to main: `app` (Flutter
+  3.44.1 as in `release-windows.yml`; pub get, analyze, test) and `daemon` (Node 18 as the box's
+  unit runs today; tmux installed; git identity set; `npm ci`, `npm test`). The one analyzer info
+  in `claude_socket.dart` fixed so analyze exits 0. First run on PR #44: both jobs green. Not done:
+  making the checks required on main is a repo setting left to the owner (PLAN line). Not
+  verified: a deliberately failing test turning the run red.

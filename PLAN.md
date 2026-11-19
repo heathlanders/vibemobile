@@ -184,7 +184,8 @@ proposal's *What shipped* when merged.
 - [x] 70 C4: confirm before ending a session
 
 **CI ([72](docs/proposals/72-ci-and-release-hygiene.md)).**
-- [ ] 72 Q1: `ci.yml` runs analyze + tests for app and daemon; required on main
+- [x] 72 Q1: `ci.yml` runs analyze + tests for app and daemon
+- [ ] 72 Q1 (owner): make the `app` and `daemon` checks required on main
 - [ ] 72 Q2: daemon `tsconfig.json` + `typecheck`, clean, in CI
 - [ ] 72 Q4: `release.sh` builds before tagging; `--rollback`
 - [ ] 72 Q3: zod schemas on incoming WS frames
