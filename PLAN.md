@@ -202,7 +202,7 @@ proposal's *What shipped* when merged.
 - [x] 69 R4: spike — does tmux survive a daemon restart? fix if not
 - [ ] 69 R11: commit the real unit with memory caps; Node 20+ (do last in a session)
 - [x] 69 R10: backpressure on PTY and chat sockets
-- [ ] 69 R9: Bash ask-list in Auto mode; `reviewer` pass
+- [x] 69 R9: Bash ask-list in Auto mode; `reviewer` pass
 - [ ] 69 R12: spikes out of `src/`
 
 **Auth lifecycle ([68](docs/proposals/68-daemon-auth-hardening.md)).**

@@ -31,6 +31,7 @@ import { planContinuation } from "./limit.js";
 import { cumulativeCostDelta, recordCumulative } from "./spend.js";
 import { capHistory } from "./history.js";
 import { autoScopeDirs, fileToolInScope } from "./file-scope.js";
+import { bashInScope } from "./bash-scope.js";
 import { PermissionGate } from "./permission-gate.js";
 import { toolResultImages } from "./attachments.js";
 import { notifyDevices, type PushType } from "./push.js";
@@ -154,8 +155,12 @@ export class ClaudeSession implements EngineSession {
       () => {
         if (this.sockets.size === 0) this.notify("permission");
       },
-      // Auto mode never touches files outside the project folders silently (security.md #7).
-      (tool, input) => fileToolInScope(tool, input, this.cwd, autoScopeDirs(this.db, this.cwd)),
+      // Auto mode never touches files outside the project folders silently, and a few
+      // risky Bash shapes always ask (security.md #7, proposal 69 R9).
+      (tool, input) => {
+        const dirs = autoScopeDirs(this.db, this.cwd);
+        return fileToolInScope(tool, input, this.cwd, dirs) && bashInScope(tool, input, this.cwd, dirs);
+      },
     );
     this.mode = initialMode;
     this.gate.setAutoAllow(initialMode !== "ask");

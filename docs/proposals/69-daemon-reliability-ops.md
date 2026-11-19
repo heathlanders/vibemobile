@@ -139,3 +139,15 @@ Order = value per hour. One PR per step.
   resumes it. Tests: `backpressure.test.ts` (backed-up chat socket gets no deltas but the full
   `assistant` and `result`; PTY pause/resume around the marks). Not measured on a real slow link.
   The CLI mirror (`external.ts`) is unchanged.
+- **R9** (2026-11-19). `bash-scope.ts` `bashInScope`, wired beside `fileToolInScope` as the gate's
+  Auto-mode scope check: risky Bash shapes ask instead of auto-running (full list and known gaps in
+  `docs/security.md` #7). The first version was regex-based; the `reviewer` pass ran ~160 commands
+  and found cheap bypasses (`&` in a URL or `2>&1` before `| sh`, `sudo -E bash`, `/usr/bin/env
+  bash`, download-then-run, subshells and quotes hiding `rm`, `xargs rm`, `find -delete`), false
+  positives (`| python3 -m json.tool`, `cd app && rm -rf build`), and a quadratic regex (200 KB
+  blocked the loop 6 s). Rewritten as a small tokenizer (pipelines → stages, quotes stripped,
+  `cd` tracked, interpreter flagged only when reading stdin, 64 KB / 200-path caps). Tests:
+  `bash-scope.test.ts` (each bypass asks, each false positive auto-runs, 200 KB input fails closed
+  in < 500 ms, a Claude session in Auto mode sends only the risky call to the phone). Owner
+  decision left: a `/tmp` exemption for `rm -rf`. Not verified live: whether the SDK routes every
+  Bash call through `canUseTool`.
