@@ -66,7 +66,7 @@ function getMessaging(): Promise<Messaging | null> {
 
 // Fire-and-forget: a push failure must never touch the session that caused it.
 export function notifyDevices(db: DB, type: PushType, sessionId: string): void {
-  const tokens = (db.prepare("SELECT fcm_token FROM devices WHERE fcm_token IS NOT NULL").all() as { fcm_token: string }[]).map(
+  const tokens = (db.prepare("SELECT fcm_token FROM devices WHERE fcm_token IS NOT NULL AND expired_at IS NULL").all() as { fcm_token: string }[]).map(
     (r) => r.fcm_token,
   );
   if (!tokens.length) return;

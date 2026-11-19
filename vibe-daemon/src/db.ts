@@ -356,6 +356,8 @@ function migrate(db: DB): void {
   }
   // ADR 0029: which device minted a code (NULL = the server terminal).
   if (!has("pairing_codes", "issued_by")) db.exec("ALTER TABLE pairing_codes ADD COLUMN issued_by TEXT");
+  // Idle token expiry (proposal 68 A2): set once, never cleared; the row stays so the Devices screen can say why.
+  if (!has("devices", "expired_at")) db.exec("ALTER TABLE devices ADD COLUMN expired_at TEXT");
   // The audit-log viewer (GET /events) pages by ts descending.
   db.exec("CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts)");
   // Every attach, search and tool-result lookup filters messages by session (proposal 69 R8).

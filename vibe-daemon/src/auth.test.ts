@@ -169,3 +169,31 @@ test("20 wrong /pair codes from 20 forwarded IPs lock pairing until a new code i
   assert.equal((await pair(app, "00000000")).statusCode, 401);
   assert.equal((await pair(app, fresh)).statusCode, 201, "a code minted after the lockout works; old failures don't re-burn it");
 });
+
+test("a token idle for 61 days is rejected and the device marked expired; 59 days still works (68 A2)", async () => {
+  const { db, app } = await setup();
+  const a = (await pair(app, createPairingCode(db), "old")).json();
+  const b = (await pair(app, createPairingCode(db), "recent")).json();
+  const daysAgo = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString();
+  db.prepare("UPDATE devices SET last_seen = ? WHERE id = ?").run(daysAgo(61), a.device_id);
+  db.prepare("UPDATE devices SET last_seen = ? WHERE id = ?").run(daysAgo(59), b.device_id);
+  const get = (token: string) => app.inject({ method: "GET", url: "/devices", headers: { authorization: `Bearer ${token}` } });
+
+  assert.equal((await get(a.token)).statusCode, 401);
+  const res = await get(b.token);
+  assert.equal(res.statusCode, 200);
+  const old = res.json().find((d: any) => d.id === a.device_id);
+  assert.ok(old?.expired_at, "kept, marked expired so the Devices screen can say why");
+  assert.ok(db.prepare("SELECT 1 FROM events WHERE kind = 'device.expired' AND device_id = ?").get(a.device_id));
+
+  // Expiry sticks: touching last_seen doesn't revive it.
+  db.prepare("UPDATE devices SET last_seen = ? WHERE id = ?").run(daysAgo(0), a.device_id);
+  assert.equal((await get(a.token)).statusCode, 401);
+});
+
+test("a device paired 61 days ago and never used is expired too (68 A2)", async () => {
+  const { db, app } = await setup();
+  const a = (await pair(app, createPairingCode(db), "unused")).json();
+  db.prepare("UPDATE devices SET paired_at = ?, last_seen = NULL WHERE id = ?").run(new Date(Date.now() - 61 * 86_400_000).toISOString(), a.device_id);
+  assert.equal((await app.inject({ method: "GET", url: "/devices", headers: { authorization: `Bearer ${a.token}` } })).statusCode, 401);
+});
