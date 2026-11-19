@@ -340,6 +340,9 @@ export class ClaudeSession implements EngineSession {
 
   // ---- file rewind (ADR 0023) ------------------------------------------------
 
+  /** Set by getOrStart: drop this session from the registry when its SDK loop ends by itself. */
+  onEnded?: () => void;
+
   busy(): boolean {
     return this.status.running;
   }
@@ -704,6 +707,7 @@ export class ClaudeSession implements EngineSession {
   // ---- SDK event loop ------------------------------------------------------
 
   private async consume(q: AsyncGenerator<SdkMsg>): Promise<void> {
+    let crashed = false;
     try {
       for await (const msg of q) {
         if (this.stopped) break;
@@ -711,8 +715,16 @@ export class ClaudeSession implements EngineSession {
       }
     } catch (e) {
       if (!this.stopped) this.send({ t: "error", message: (e as Error)?.message ?? String(e) });
+      crashed = !this.stopped;
     }
     this.status.end(); // the loop is over — no turn can still be running
+    // The SDK loop threw: nothing would ever read pushUser again. Tell clients to
+    // reconnect (1012) and leave the registry so the next attach starts a fresh
+    // session that resumes the transcript (proposal 69 R3).
+    if (crashed) {
+      this.stop(1012, "session ended");
+      this.onEnded?.();
+    }
   }
 
   private handle(msg: SdkMsg): void {

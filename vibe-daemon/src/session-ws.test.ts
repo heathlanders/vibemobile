@@ -179,6 +179,51 @@ test("claude WS: non-object and malformed frames are dropped without a rejection
   ws.close();
 });
 
+test("claude WS: an SDK loop crash drops the session; the next attach starts fresh (69 R3)", async (t) => {
+  const db = openDb(":memory:");
+  const registry = new Map();
+  let starts = 0;
+  const crashingQuery = (params: { prompt: AsyncIterable<any>; options: any }) => {
+    starts++;
+    return (async function* () {
+      yield { type: "system", subtype: "init", session_id: "claude-crash", model: "claude-x" };
+      await params.prompt[Symbol.asyncIterator]().next();
+      throw new Error("SDK subprocess exited");
+    })();
+  };
+  const app = await buildApp(db, noTmux, registry, crashingQuery);
+  await app.listen({ host: "127.0.0.1", port: 0 });
+  t.after(() => app.close());
+  const port = (app.server.address() as AddressInfo).port;
+  const { token } = (
+    await app.inject({ method: "POST", url: "/pair", payload: { code: createPairingCode(db), device_name: "t" } })
+  ).json();
+  db.prepare("INSERT INTO projects (id, path, name, type) VALUES (?,?,?,?)").run("p_ok", REPO_DIR, "vm", "unknown");
+  const id = (
+    await app.inject({
+      method: "POST",
+      url: "/sessions",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { project_id: "p_ok", kind: "claude" },
+    })
+  ).json().id;
+
+  const a = connect(port, id, token);
+  await waitFor(() => a.frames.some((f) => f.t === "history"));
+  const first = registry.get(id);
+  const closed = new Promise<number>((r) => a.ws.on("close", (c) => r(c)));
+  a.ws.send(JSON.stringify({ t: "user", text: "hi" }));
+  assert.equal(await closed, 1012, "clients are told to reconnect");
+  assert.ok(a.frames.some((f) => f.t === "error"), "the crash is reported");
+  assert.equal(registry.has(id), false, "the dead session left the registry");
+
+  const b = connect(port, id, token);
+  await waitFor(() => b.frames.some((f) => f.t === "history"));
+  assert.ok(registry.get(id) && registry.get(id) !== first, "a fresh session on reattach");
+  assert.equal(starts, 2);
+  b.ws.close();
+});
+
 test("claude WS: initialPrompt primes the first turn atomically (proposal 15)", async (t) => {
   const { app, port, token, db } = await bootApp();
   t.after(() => app.close());
