@@ -153,6 +153,32 @@ test("claude WS: revoking the device closes its chat socket 4401 (proposal 68 A1
   assert.equal(await closed, 4401);
 });
 
+test("claude WS: non-object and malformed frames are dropped without a rejection (72 Q3)", async (t) => {
+  const { app, port, token } = await bootApp();
+  t.after(() => app.close());
+  const rejections: unknown[] = [];
+  const onRej = (e: unknown) => rejections.push(e);
+  process.on("unhandledRejection", onRej);
+  t.after(() => process.off("unhandledRejection", onRej));
+  const id = (
+    await app.inject({
+      method: "POST",
+      url: "/sessions",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { project_id: "p_ok", kind: "claude" },
+    })
+  ).json().id;
+
+  const { ws, frames } = connect(port, id, token);
+  await waitFor(() => frames.some((f) => f.t === "history"));
+  for (const bad of ["null", "5", "[]", '"user"', '{"t":"user","text":5}', '{"t":"permission","toolUseID":1,"allow":true}']) ws.send(bad);
+  ws.send(JSON.stringify({ t: "user", text: "hi" }));
+  await waitFor(() => frames.some((f) => f.t === "result"));
+  await sleep(50);
+  assert.deepEqual(rejections, [], "no frame threw inside the handler");
+  ws.close();
+});
+
 test("claude WS: initialPrompt primes the first turn atomically (proposal 15)", async (t) => {
   const { app, port, token, db } = await bootApp();
   t.after(() => app.close());

@@ -66,3 +66,11 @@ About 1,150 test cases exist and none run on a pull request. Facts gathered 2026
   bare origin, `FLUTTER=/bin/false`): old script pushed the tag, new one leaves none; rollback
   writes the right version/build/sha. Runs in CI as `release-script`. A `--skip-apk` release still
   tags before the Windows build, as before.
+- **Q3** (2026-11-19, WS frames). `src/ws-frames.ts`: a zod discriminated union for the chat
+  socket's 11 client frame types (`parseClientFrame`) and the PTY resize body (`parseResize`, used
+  by `/pty` and `/tty`). Anything else is dropped before a handler runs. Real bug it closes: a frame
+  of JSON `null`, a number or an array made `f.t` throw inside the `ready.then` callback, an
+  unhandled rejection per frame. Value checks that need session state (mode whitelist, MCP server
+  names, effort levels) stay where they were. Tests: `session-ws.test.ts` (non-object and
+  mistyped frames, no rejection, socket keeps working; red on old code), `ws-frames.test.ts`
+  (shape table). Route bodies are next, as files are touched.

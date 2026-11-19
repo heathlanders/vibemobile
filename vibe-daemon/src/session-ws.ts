@@ -22,6 +22,7 @@ import { inputAudit } from "./input-audit.js";
 import { logEvent } from "./auth.js";
 import { Mirror, realVcTmux, resolveExternal, type VcTmux } from "./external.js";
 import { maxLive } from "./sessions.js";
+import { parseClientFrame, parseResize } from "./ws-frames.js";
 
 const PING_MS = 15_000;
 
@@ -129,12 +130,8 @@ export function registerSessionWs(
     );
 
     socket.on("message", (raw: Buffer) => {
-      let f: any;
-      try {
-        f = JSON.parse(raw.toString("utf8"));
-      } catch {
-        return;
-      }
+      const f = parseClientFrame(raw.toString("utf8")); // shape-checked; anything else is dropped (72 Q3)
+      if (!f) return;
       void ready.then((session) => {
         if (!session || socket.readyState !== socket.OPEN) return; // a frame queued before a revoke never runs
         if (session instanceof Mirror) {
@@ -219,12 +216,8 @@ export function registerSessionWs(
         audit.add(body.length); // size only — never the keystrokes
         term.write(body.toString("utf8"));
       } else if (op === "1") {
-        try {
-          const { cols, rows } = JSON.parse(body.toString("utf8"));
-          term.resize(cols, rows);
-        } catch {
-          // malformed resize — ignore
-        }
+        const size = parseResize(body.toString("utf8")); // malformed resize — ignore
+        if (size) term.resize(size.cols, size.rows);
       }
     });
     let isAlive = true;
