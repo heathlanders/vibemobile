@@ -3,7 +3,7 @@
 **Question (gap analysis):** can the daemon copy a conversation up to a chosen point into an
 independent new session, using the message ids we already store?
 
-**Script:** `vibe-daemon/src/spike-fork.ts` — throwaway temp-dir cwd, SDK 0.3.291, real Claude
+**Script:** `vibe-daemon/spikes/spike-fork.ts` — throwaway temp-dir cwd, SDK 0.3.291, real Claude
 (a few cents). Run 2026-10-07: two turns ("remember PINEAPPLE", "remember TURQUOISE"), fork, resume.
 
 ## Results
@@ -27,5 +27,5 @@ independent new session, using the message ids we already store?
 ## Re-run
 
 ```
-cd vibe-daemon && npx tsx src/spike-fork.ts
+cd vibe-daemon && npx tsx spikes/spike-fork.ts
 ```

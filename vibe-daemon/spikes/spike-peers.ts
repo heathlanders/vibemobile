@@ -4,9 +4,9 @@
 //
 // Re-run: pnpm tsx src/spike-peers.ts
 
-import { openDb } from "./db.js";
-import { ClaudeSession } from "./claude.js";
-import type { EngineSession } from "./engine.js";
+import { openDb } from "../src/db.js";
+import { ClaudeSession } from "../src/claude.js";
+import type { EngineSession } from "../src/engine.js";
 
 const db = openDb(":memory:");
 db.prepare("INSERT INTO projects (id, path, name, type) VALUES (?,?,?,?)").run("p1", "/tmp", "p", "unknown");

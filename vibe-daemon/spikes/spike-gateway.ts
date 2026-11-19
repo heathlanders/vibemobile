@@ -15,7 +15,7 @@
 // docs/spikes/M5-spike-gateway-model-swap.md.
 
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { gatewayEnv } from "./gateway.js";
+import { gatewayEnv } from "../src/gateway.js";
 
 const cwd = process.argv[2] ?? process.cwd();
 const model = process.argv[3]; // e.g. "gpt-4o" (as named in the gateway config)

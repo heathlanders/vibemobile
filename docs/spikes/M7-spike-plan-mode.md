@@ -3,7 +3,7 @@
 **Question (proposal 25):** can the daemon switch a live Agent SDK session into
 plan mode, receive the plan through `canUseTool`, and approve/reject it?
 
-**Script:** `vibe-daemon/src/spike-plan-mode.ts [allow|deny]` — throwaway temp-dir
+**Script:** `vibe-daemon/spikes/spike-plan-mode.ts [allow|deny]` — throwaway temp-dir
 cwd, SDK 0.3.169, real Claude (a few cents). Run 2026-10-06.
 
 ## Results

@@ -1,7 +1,7 @@
 # M0 Spike 2 — PTY ↔ WS round-trip + resize
 
 **Status:** ✅ Passed (2026-06-08)
-**Code:** `vibe-daemon/src/spike-pty.ts`
+**Code:** `vibe-daemon/spikes/spike-pty.ts`
 **Run:** `cd vibe-daemon && npm run spike:pty`
 
 ## Risk being killed

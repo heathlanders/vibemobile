@@ -3,7 +3,7 @@
 **Question (gap analysis):** every mainstream harness shows which MCP/tool servers are
 connected. What does the SDK report, and what is safe to forward to a phone?
 
-**Script:** `vibe-daemon/src/spike-mcp.ts` — throwaway temp-dir cwd with a deliberately broken
+**Script:** `vibe-daemon/spikes/spike-mcp.ts` — throwaway temp-dir cwd with a deliberately broken
 `.mcp.json` (a non-existent command, carrying a fake secret in `args` and `env`); SDK 0.3.291; no
 model call. Run 2026-10-07.
 
@@ -34,5 +34,5 @@ model call. Run 2026-10-07.
 ## Re-run
 
 ```
-cd vibe-daemon && npx tsx src/spike-mcp.ts
+cd vibe-daemon && npx tsx spikes/spike-mcp.ts
 ```

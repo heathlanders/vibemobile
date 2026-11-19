@@ -1,7 +1,7 @@
 # M0 Spike 1 — Agent SDK auth & event stream
 
 **Status:** ✅ Passed (2026-06-08)
-**Code:** `vibe-daemon/src/spike-claude.ts`
+**Code:** `vibe-daemon/spikes/spike-claude.ts`
 **Run:** `cd vibe-daemon && npm run spike:claude [cwd]`
 
 ## Risk being killed

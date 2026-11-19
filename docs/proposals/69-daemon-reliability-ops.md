@@ -151,3 +151,8 @@ Order = value per hour. One PR per step.
   in < 500 ms, a Claude session in Auto mode sends only the risky call to the phone). Owner
   decision left: a `/tmp` exemption for `rm -rf`. Not verified live: whether the SDK routes every
   Bash call through `canUseTool`.
+- **R12** (2026-11-19). The 18 `spike-*.ts` files and `serve-pty.ts` moved from `src/` to
+  `vibe-daemon/spikes/` (`git mv`, history kept), with a README. Their four relative imports now
+  point at `../src/`, the `npm run spike:*` scripts follow, and the `tsconfig` exclude is gone
+  (`src/` has no spikes left). Path references updated in 19 docs; ADRs left as written (immutable).
+  Spikes stay outside typecheck and tests; their imports were checked to resolve.

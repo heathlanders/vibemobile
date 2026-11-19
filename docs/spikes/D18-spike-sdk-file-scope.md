@@ -4,9 +4,9 @@
 outside the session cwd in `permissionMode: 'default'`? If it approves those
 itself, the daemon's Auto-mode file scope would never see them.
 
-**Script:** `vibe-daemon/src/spike-file-scope.ts`. It uses throwaway temp dirs
+**Script:** `vibe-daemon/spikes/spike-file-scope.ts`. It uses throwaway temp dirs
 and real Claude (haiku, about a cent). Re-run with
-`cd vibe-daemon && npx tsx src/spike-file-scope.ts`. Run 2026-10-06, SDK 0.3.291.
+`cd vibe-daemon && npx tsx spikes/spike-file-scope.ts`. Run 2026-10-06, SDK 0.3.291.
 
 ## Result
 

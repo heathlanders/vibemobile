@@ -34,7 +34,7 @@ async, so the key is always consumed and text paste is done by hand.
 desktop Enter was ignored. Now Stop sits beside Send, and Enter sends. No daemon
 change: `pushUser` has no busy guard and feeds the SDK's streaming input.
 
-Spike (`vibe-daemon/src/spike-midturn.ts`, re-run `pnpm tsx src/spike-midturn.ts`):
+Spike (`vibe-daemon/spikes/spike-midturn.ts`, re-run `pnpm tsx spikes/spike-midturn.ts`):
 a message pushed 5s into a `sleep 12` turn was accepted and delivered at the next
 tool boundary (user-echo at +15.8s), so the reply covered both. **One `result`
 came back for both messages**, so the client keeps `busy` as a plain flag cleared

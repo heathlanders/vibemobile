@@ -203,7 +203,7 @@ proposal's *What shipped* when merged.
 - [ ] 69 R11: commit the real unit with memory caps; Node 20+ (do last in a session)
 - [x] 69 R10: backpressure on PTY and chat sockets
 - [x] 69 R9: Bash ask-list in Auto mode; `reviewer` pass
-- [ ] 69 R12: spikes out of `src/`
+- [x] 69 R12: spikes out of `src/`
 
 **Auth lifecycle ([68](docs/proposals/68-daemon-auth-hardening.md)).**
 - [ ] 68 A3: ADR + box-side confirmation for pair-code mint and revoking another device; `reviewer` pass
