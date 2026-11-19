@@ -14,10 +14,9 @@ import type { DB } from "./db.js";
 import type { Tmux } from "./tmux.js";
 import type { Device } from "./auth.js";
 import { inputAudit } from "./input-audit.js";
+import { parseResize } from "./ws-frames.js";
 
 const PING_MS = 15_000;
-
-const validSize = (n: unknown): n is number => Number.isInteger(n) && (n as number) > 0 && (n as number) <= 1000;
 
 export function registerPtyWs(app: FastifyInstance, db: DB, tmux: Tmux): void {
   app.get("/pty/:id", { websocket: true }, async (socket: WebSocket, req) => {
@@ -56,12 +55,8 @@ export function registerPtyWs(app: FastifyInstance, db: DB, tmux: Tmux): void {
         audit.add(body.length); // size only — never the keystrokes
         term.write(body.toString("utf8"));
       } else if (op === "1") {
-        try {
-          const { cols, rows } = JSON.parse(body.toString("utf8"));
-          if (validSize(cols) && validSize(rows)) term.resize(cols, rows);
-        } catch {
-          // malformed resize — ignore (an uncaught throw here kills the daemon)
-        }
+        const size = parseResize(body.toString("utf8")); // malformed resize — ignore (a throw here once killed the daemon)
+        if (size) term.resize(size.cols, size.rows);
       }
     });
 
