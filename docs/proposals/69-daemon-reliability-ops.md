@@ -124,3 +124,11 @@ Order = value per hour. One PR per step.
   keystrokes (by design) and mirrored CLI sessions. Test: `permission-gate.test.ts` (red on old
   code). Side effect to know: a command with a secret in it now lands in `events` too (it was
   already in the transcript); R7 keeps those rows 90 days.
+- **R4** (2026-11-19). Spike ([R4-spike-tmux-restart.md](../spikes/R4-spike-tmux-restart.md)) on a
+  scratch transient unit: before, the tmux server sat in the service cgroup and a restart killed
+  every terminal (row → `stale`). Fix: `createSession` starts `new-session` inside
+  `systemd-run --user --scope`; plain spawn without user systemd or with `VIBE_TMUX_SCOPE=0`.
+  After: the server is in its own scope, survives the restart, and a WebSocket reattach gets the
+  same shell. Test: `tmux.test.ts` (server cgroup is a `.scope`; red on old code; skipped
+  without user systemd). Caveat: a tmux server already running keeps its old cgroup, so the first
+  restart after deploying still kills the terminals open at that moment.

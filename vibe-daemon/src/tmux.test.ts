@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { realTmux } from "./tmux.js";
 
 const execFileP = promisify(execFile);
@@ -57,4 +58,25 @@ test("tmux session: create → attach → detach (survives) → kill", { skip: !
   // Explicit kill = gone.
   await tmux.killSession(id);
   assert.equal(await tmux.hasSession(id), false, "killSession ends it");
+});
+
+// Proposal 69 R4: a tmux server forked by the daemon used to live in the daemon's
+// own cgroup, so `systemctl restart` (KillMode=control-group) killed every terminal.
+// Started inside its own `systemd-run --user --scope`, it outlives the service.
+const systemdUser = await execFileP("systemd-run", ["--user", "--scope", "--quiet", "--collect", "--", "/bin/true"]).then(
+  () => true,
+  () => false,
+);
+test("tmux server runs in its own systemd scope, not the caller's cgroup", { skip: !tmuxInstalled || !systemdUser }, async (t) => {
+  const sock = SOCK + "-scope";
+  const tmux = realTmux(sock);
+  t.after(async () => {
+    await execFileP("tmux", ["-L", sock, "kill-server"]).catch(() => {});
+  });
+  await tmux.createSession("s_scope", "/tmp");
+  const { stdout } = await execFileP("tmux", ["-L", sock, "display-message", "-p", "#{pid}"]);
+  const serverCg = readFileSync(`/proc/${stdout.trim()}/cgroup`, "utf8").trim();
+  const ownCg = readFileSync("/proc/self/cgroup", "utf8").trim();
+  assert.notEqual(serverCg, ownCg, "not in the daemon's cgroup");
+  assert.match(serverCg, /\.scope$/);
 });
