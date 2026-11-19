@@ -100,7 +100,7 @@ test("rescan prunes vanished / non-project rows, but never ones with sessions or
       ids.includes("busy") && ids.includes("prompted") && ids.includes("noted"),
       "kept: deleting would cascade their data",
     );
-    assert.equal(db.prepare("SELECT COUNT(*) n FROM sessions").get()!.n, 1);
+    assert.equal((db.prepare("SELECT COUNT(*) n FROM sessions").get() as { n: number }).n, 1);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

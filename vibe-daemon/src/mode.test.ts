@@ -160,8 +160,8 @@ test("ExitPlanMode round-trips to the phone even with auto-allow on; approve ret
 
   assert.equal(s.onDialogResponse(dlg.dialogId, true, { approve: true, mode: "ask" }, "dev1"), true);
   await waitFor(() => decision !== null);
-  assert.equal(decision.behavior, "allow");
-  assert.deepEqual(decision.updatedInput, { plan: "# P\n- step", planFilePath: "/x/p.md" });
+  assert.equal((decision as any).behavior, "allow"); // assert.equal(decision, null) above narrowed it
+  assert.deepEqual((decision as any).updatedInput, { plan: "# P\n- step", planFilePath: "/x/p.md" });
   assert.ok(ws.frames.some((f: any) => f.t === "mode" && f.mode === "ask"));
   assert.deepEqual(q.calls.modes, ["default"]);
   const ev = db.prepare("SELECT device_id FROM events WHERE kind='session.mode'").get() as any;
@@ -263,7 +263,7 @@ test("POST /sessions mode: whitelisted, claude only, persisted", async () => {
   ).json();
   const auth = { authorization: `Bearer ${token}` };
   db.prepare("INSERT INTO projects (id, path, name, type) VALUES (?,?,?,?)").run("p_ok", REPO_DIR, "v", "unknown");
-  const post = (payload: unknown) => app.inject({ method: "POST", url: "/sessions", headers: auth, payload });
+  const post = (payload: object) => app.inject({ method: "POST", url: "/sessions", headers: auth, payload });
 
   const ok = await post({ project_id: "p_ok", kind: "claude", mode: "plan" });
   assert.equal(ok.statusCode, 201);

@@ -247,7 +247,7 @@ test("POST /sessions/prune clears stale rows, keeps live, dismisses transcripts"
   ins.run("s_old", "p_ok", "claude", "sess-old", "stale", old);
   ins.run("s_new", "p_ok", "claude", "sess-new", "stale", new Date().toISOString());
   ins.run("s_live", "p_ok", "claude", "sess-live", "live", old);
-  const prune = (payload: unknown) => app.inject({ method: "POST", url: "/sessions/prune", headers: auth, payload });
+  const prune = (payload: object) => app.inject({ method: "POST", url: "/sessions/prune", headers: auth, payload });
 
   assert.equal((await prune({})).statusCode, 400);
   assert.deepEqual((await prune({ project_id: "p_ok", older_than_days: 7 })).json(), { deleted: 1 });

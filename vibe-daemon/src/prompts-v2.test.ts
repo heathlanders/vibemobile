@@ -8,7 +8,7 @@ import { openDb } from "./db.js";
 import { registerPromptRoutes } from "./prompts.js";
 import { DEEPER_SYSTEM, IMPROVE_SYSTEM, ImproveBusy, improvePrompt } from "./prompt-improve.js";
 
-function setup(improve?: (t: string, cwd: string) => Promise<string>) {
+function setup(improve?: (t: string, cwd: string, mode?: string) => Promise<string>) {
   const db = openDb(":memory:");
   const app = Fastify();
   registerPromptRoutes(app, db, improve);
