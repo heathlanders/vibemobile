@@ -11,6 +11,21 @@ import * as pty from "node-pty";
 import type { DB } from "./db.js";
 
 const execFileP = promisify(execFile);
+
+// The tmux server is forked by the first `new-session`. Started plainly it joins
+// the daemon's cgroup, and `systemctl restart vibe-daemon` (KillMode=control-group)
+// kills every terminal — against ADR 0004. Inside its own `systemd-run --user
+// --scope` it outlives the service (proposal 69 R4; docs/spikes/R4-spike-tmux-restart.md).
+// No user systemd (CI, containers) or VIBE_TMUX_SCOPE=0 → plain spawn, as before.
+let scopeOk: Promise<boolean> | null = null;
+function haveUserScope(): Promise<boolean> {
+  if (process.env.VIBE_TMUX_SCOPE === "0") return Promise.resolve(false);
+  scopeOk ??= execFileP("systemd-run", ["--user", "--scope", "--quiet", "--collect", "--", "/bin/true"], { timeout: 5000 }).then(
+    () => true,
+    () => false,
+  );
+  return scopeOk;
+}
 const tmuxName = (id: string) => `vibe-${id}`;
 
 export type Tmux = {
@@ -48,7 +63,13 @@ export function realTmux(socket = process.env.VIBE_TMUX_SOCKET ?? "vibe"): Tmux 
     },
 
     async createSession(id, cwd, command) {
-      await tmux(["new-session", "-d", "-s", tmuxName(id), "-x", "80", "-y", "24", "-c", cwd]);
+      const args = ["new-session", "-d", "-s", tmuxName(id), "-x", "80", "-y", "24", "-c", cwd];
+      if (await haveUserScope()) {
+        // Same contract as tmux(): a non-zero exit is not thrown (callers check hasSession).
+        await execFileP("systemd-run", ["--user", "--scope", "--quiet", "--collect", "--", "tmux", "-L", socket, ...args]).catch(() => {});
+      } else {
+        await tmux(args);
+      }
       // Typed, not exec'd: quitting the agent leaves a usable shell, not a dead pane.
       if (command) {
         await tmux(["send-keys", "-t", tmuxName(id), "-l", command]);
