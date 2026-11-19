@@ -80,3 +80,9 @@ Work in this order; each step is one small PR with its tests.
   wrong try. **Ops half open:** the raw TCP forward is still live on the box. Nothing in the repo
   uses it, but a device's stored URL can't be checked from the box, so removal waits for the owner
   (PLAN line *68 A4 ops*).
+- **A2** (2026-11-19). `devices.expired_at` (migration adds the column). `authenticate` rejects a
+  token whose `last_seen` (or `paired_at` if never used) is more than 60 days old, sets
+  `expired_at`, audits `device.expired`; an expired row is never revived and gets no pushes.
+  `GET /devices` returns `expired_at` (the app does not show it yet). No rotation. Tests:
+  `auth.test.ts` (61 days → 401 + marked; 59 days → 200; sticks after `last_seen` is touched;
+  never-used device by `paired_at`; red on old code).

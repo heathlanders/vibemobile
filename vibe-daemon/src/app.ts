@@ -158,7 +158,7 @@ export async function buildApp(
   // device so the client can warn before revoking the phone it's running on.
   app.get("/devices", async (req) => {
     const me = (req as { device?: Device }).device?.id ?? null;
-    const rows = db.prepare("SELECT id, name, paired_at, last_seen FROM devices ORDER BY paired_at").all() as {
+    const rows = db.prepare("SELECT id, name, paired_at, last_seen, expired_at FROM devices ORDER BY paired_at").all() as {
       id: string;
     }[];
     return rows.map((r) => ({ ...r, current: r.id === me }));

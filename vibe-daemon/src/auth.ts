@@ -80,14 +80,26 @@ export function recordPairFailure(db: DB, deviceName: string): void {
 
 export type Device = { id: string; name: string; paired_at: string; last_seen: string | null };
 
+// A token unused this long stops working (proposal 68 A2): a phone lost in a drawer
+// shouldn't stay a key to the box forever. Re-pairing is the way back.
+export const TOKEN_IDLE_DAYS = 60;
+
 // Resolve a "Bearer <token>" header to a device, or null. Touches last_seen.
+// An idle-expired device is marked (not deleted) and rejected from then on.
 export function authenticate(db: DB, authHeader: string | undefined): Device | null {
   const m = /^Bearer\s+(.+)$/.exec(authHeader ?? "");
   if (!m) return null;
-  const device = db
-    .prepare("SELECT id, name, paired_at, last_seen FROM devices WHERE token_hash = ?")
-    .get(sha256(m[1])) as Device | undefined;
-  if (!device) return null;
-  db.prepare("UPDATE devices SET last_seen = ? WHERE id = ?").run(nowIso(), device.id);
+  const row = db
+    .prepare("SELECT id, name, paired_at, last_seen, expired_at FROM devices WHERE token_hash = ?")
+    .get(sha256(m[1])) as (Device & { expired_at: string | null }) | undefined;
+  if (!row || row.expired_at) return null;
+  const lastUse = new Date(row.last_seen ?? row.paired_at).getTime();
+  if (Date.now() - lastUse > TOKEN_IDLE_DAYS * 86_400_000) {
+    db.prepare("UPDATE devices SET expired_at = ? WHERE id = ?").run(nowIso(), row.id);
+    logEvent(db, "device.expired", row.id, `idle since ${row.last_seen ?? row.paired_at}`);
+    return null;
+  }
+  db.prepare("UPDATE devices SET last_seen = ? WHERE id = ?").run(nowIso(), row.id);
+  const { expired_at: _, ...device } = row;
   return device;
 }
