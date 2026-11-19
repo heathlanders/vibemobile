@@ -60,6 +60,24 @@ export function pairDevice(db: DB, code: string, name: string): { device_id: str
   return { device_id: id, token };
 }
 
+// Global /pair cap (proposal 68 A4): per-IP limits trust X-Forwarded-For, so also
+// count failures across ALL clients. At the cap, burn every outstanding code and
+// pairing stays locked until a new one is minted. Counted from the audit log (since
+// the last lockout) so it survives a restart.
+export const PAIR_FAIL_CAP = 20;
+const PAIR_FAIL_WINDOW_MS = 60 * 60_000;
+
+export function recordPairFailure(db: DB, deviceName: string): void {
+  logEvent(db, "pair.fail", null, deviceName);
+  const lastLock = (db.prepare("SELECT MAX(ts) AS ts FROM events WHERE kind = 'pair.lockout'").get() as { ts: string | null }).ts;
+  const windowStart = new Date(Date.now() - PAIR_FAIL_WINDOW_MS).toISOString();
+  const since = lastLock && lastLock > windowStart ? lastLock : windowStart;
+  const { n } = db.prepare("SELECT COUNT(*) AS n FROM events WHERE kind = 'pair.fail' AND ts > ?").get(since) as { n: number };
+  if (n < PAIR_FAIL_CAP) return;
+  const burned = db.prepare("UPDATE pairing_codes SET used = 1 WHERE used = 0").run().changes;
+  logEvent(db, "pair.lockout", null, `${n} failures, ${burned} codes burned`);
+}
+
 export type Device = { id: string; name: string; paired_at: string; last_seen: string | null };
 
 // Resolve a "Bearer <token>" header to a device, or null. Touches last_seen.

@@ -72,3 +72,11 @@ Work in this order; each step is one small PR with its tests.
   `OPEN`. Tests: `pty-ws.test.ts` (4401 + racing frame never reaches the shell, checked by
   removing the listener drop: 3/3 fail; revoke mid-attach never attaches), `session-ws.test.ts`
   (chat socket 4401). `docs/security.md` row 4 updated.
+- **A4** (2026-11-19, code half). `recordPairFailure` (`auth.ts`) counts `pair.fail` events across
+  all clients in the last hour, since the last lockout. At 20 it marks every unused code used and
+  logs `pair.lockout`; pairing stays dead until a new code is minted, and old failures don't
+  burn the new one. Counted from the audit log, so a restart doesn't reset it. Test: 20 wrong
+  codes from 20 forwarded IPs burn a live code; a code minted afterwards pairs even after one more
+  wrong try. **Ops half open:** the raw TCP forward is still live on the box. Nothing in the repo
+  uses it, but a device's stored URL can't be checked from the box, so removal waits for the owner
+  (PLAN line *68 A4 ops*).
