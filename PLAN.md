@@ -189,7 +189,7 @@ proposal's *What shipped* when merged.
 - [x] 72 Q2: daemon `tsconfig.json` + `typecheck`, clean, in CI
 - [x] 72 Q4: `release.sh` builds before tagging; `--rollback`
 - [x] 72 Q3: zod schemas on incoming WS frames
-- [ ] 72 Q5: widget tests for pairing, updater, terminal
+- [x] 72 Q5: widget tests for pairing, updater, terminal
 - [ ] 72 Q6: license decision (owner)
 
 **Daemon reliability ([69](docs/proposals/69-daemon-reliability-ops.md)).**
