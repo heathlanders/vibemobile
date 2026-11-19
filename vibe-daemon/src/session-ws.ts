@@ -51,7 +51,13 @@ export function getOrStart(registry: ClaudeRegistry, db: DB, row: any, queryFn: 
     session = isNativeProvider(providerFor(row.model))
       ? new NativeSession(db, row.id, cwd, row.model, streamTextFn, undefined, undefined, undefined, mode)
       : new ClaudeSession(db, row.id, cwd, queryFn, undefined, row.model ?? null, mode);
-    if (session instanceof ClaudeSession) session.peerRegistry = registry; // session-to-session tools (proposal 30)
+    if (session instanceof ClaudeSession) {
+      session.peerRegistry = registry; // session-to-session tools (proposal 30)
+      const s = session;
+      s.onEnded = () => {
+        if (registry.get(row.id) === s) registry.delete(row.id);
+      };
+    }
     registry.set(row.id, session);
     // Prime the first turn before the engine starts (proposal 15). Clear it so a
     // reattach (or daemon restart) never re-sends — consume-once.

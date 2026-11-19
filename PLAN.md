@@ -195,7 +195,7 @@ proposal's *What shipped* when merged.
 **Daemon reliability ([69](docs/proposals/69-daemon-reliability-ops.md)).**
 - [x] 69 R5: logger, error handler, graceful stop, real `/health`
 - [x] 69 R2: reaper skips running turns and pending dialogs
-- [ ] 69 R3: SDK loop crash removes the session (test first)
+- [x] 69 R3: SDK loop crash removes the session (test first)
 - [ ] 69 R8 + R7: `messages` index, `tool_use_id`, retention, vacuum, nightly backup
 - [ ] 69 R6: audit log records command text; `security.md` corrected
 - [ ] 69 R4: spike — does tmux survive a daemon restart? fix if not

@@ -93,3 +93,12 @@ Order = value per hour. One PR per step.
   SDK blocks mid-turn: detached + quiet → not reapable; after `result` → reapable; red on old code).
   Not changed: `NativeSession.isReapable` has the same shape; native turns stream from the API, but
   a slow native tool call would hit the same gap.
+- **R3** (2026-11-19). Reproduced: a fake SDK that throws mid-turn left the session in the
+  registry; the socket stayed open and every later turn queued into a dead loop. Now when
+  `consume()` throws (and the session wasn't stopped) it sends the `error` frame, stops with
+  1012 (clients reconnect) and calls `onEnded`, which `getOrStart` sets to drop it from the
+  registry; the reattach starts a fresh session that resumes by `claude_session_id`. Test:
+  `session-ws.test.ts` over a real socket (crash → error + 1012, gone from registry, reattach →
+  new instance; old code hangs waiting for the close). Gap: a loop that *ends cleanly* while input
+  is still open is not handled. The real SDK only ends when input closes, but the test fakes end
+  after one turn, so covering it means reworking the shared fake.
