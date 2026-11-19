@@ -35,7 +35,8 @@ class ChatSessionController extends ChangeNotifier with WidgetsBindingObserver {
   /// prompt from the library). Sent exactly once.
   final String? initialMessage;
   bool _sentInitial = false;
-  final _queued = <String>[];
+  // Turns waiting for a live socket (proposal 70 C1); sent after the next `history`.
+  final _queued = <({String text, List<String> images})>[];
 
   /// A first turn handed over by a later view of an already-pooled controller
   /// (e.g. a prompt sent into a session that's open in a tab): sent now if
@@ -44,7 +45,7 @@ class ChatSessionController extends ChangeNotifier with WidgetsBindingObserver {
     if (state == ConnState.live) {
       sendUser(text);
     } else {
-      _queued.add(text);
+      _queued.add((text: text, images: const []));
     }
   }
 
@@ -180,6 +181,7 @@ class ChatSessionController extends ChangeNotifier with WidgetsBindingObserver {
     _sub = null;
     _socket?.close();
     _socket = null;
+    _set(ConnState.connecting); // not live: a send now queues (proposal 70 C1)
   }
 
   void _resume() {
@@ -219,10 +221,6 @@ class ChatSessionController extends ChangeNotifier with WidgetsBindingObserver {
         _sentInitial = true;
         sendUser(initialMessage!);
       }
-      for (final t in _queued) {
-        sendUser(t);
-      }
-      _queued.clear();
       _sub = socket.frames.listen(
         applyFrame,
         onDone: () => _onClosed(socket.closeCode),
@@ -248,6 +246,12 @@ class ChatSessionController extends ChangeNotifier with WidgetsBindingObserver {
         external = null;
         for (final m in (f['messages'] as List? ?? const [])) {
           _applyHistoryRow(m as Map<String, dynamic>);
+        }
+        // Flush after the replay, not on connect: the replay would erase the bubbles.
+        final queued = [..._queued];
+        _queued.clear();
+        for (final q in queued) {
+          sendUser(q.text, images: q.images);
         }
       case 'external':
         external = ExternalRun(status: f['status'] as String? ?? '', canReply: f['canReply'] == true);
@@ -461,6 +465,13 @@ class ChatSessionController extends ChangeNotifier with WidgetsBindingObserver {
 
   void sendUser(String text, {List<String> images = const []}) {
     if (text.trim().isEmpty && images.isEmpty) return;
+    if (state != ConnState.live) {
+      // Down (connecting / reconnecting / paused): keep the turn, show it as queued.
+      _queued.add((text: text, images: images));
+      messages.add(ChatMessage(role: ChatRole.user, text: text, images: images, queued: true));
+      notifyListeners();
+      return;
+    }
     _clearLimit();
     // Mirroring: the turn comes back as `user_turn` once the CLI takes it.
     if (external == null) messages.add(ChatMessage(role: ChatRole.user, text: text, images: images));

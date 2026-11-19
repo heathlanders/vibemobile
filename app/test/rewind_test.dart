@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vibemobile/core/reconnect.dart';
 import 'package:vibemobile/features/chat/data/rewind_api.dart';
 import 'package:vibemobile/features/chat/domain/chat_message.dart';
 import 'package:vibemobile/features/chat/presentation/chat_session_controller.dart';
@@ -48,6 +49,7 @@ void main() {
           {'id': 'old', 'role': 'user', 'content': 'earlier', 'ts': '1'},
         ],
       });
+      c.state = ConnState.live;
       c.sendUser('first live');
       c.applyFrame({'t': 'user_ack', 'messageId': 'm-live'});
       expect(c.messages.last.text, 'first live');

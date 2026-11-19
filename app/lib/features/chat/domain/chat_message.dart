@@ -16,6 +16,7 @@ class ChatMessage {
     this.images = const [],
     this.streaming = false,
     this.superseded = false,
+    this.queued = false,
     this.ts,
     this.serverId,
     DateTime? at,
@@ -55,6 +56,10 @@ class ChatMessage {
   /// A user turn that's been retried/edited (proposal 11) — rendered dimmed.
   /// Client-only marking; not persisted (the SDK transcript is append-only).
   bool superseded;
+
+  /// A user turn typed while the socket was down (proposal 70 C1): held by the
+  /// controller and sent after the next `history`. Client-only; never cached.
+  bool queued;
 
   // Persistence for the offline transcript cache (transcript_cache.dart).
   // `streaming` is transient and intentionally omitted.

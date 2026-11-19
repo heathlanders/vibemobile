@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vibemobile/core/reconnect.dart';
 import 'package:vibemobile/core/theme.dart';
 import 'package:vibemobile/features/chat/presentation/chat_session_controller.dart';
 import 'package:vibemobile/features/multichat/presentation/multi_chat_screen.dart';
@@ -88,6 +89,7 @@ void main() {
 
     testWidgets('busy turn shows the spinner until result', (tester) async {
       final c = await pump(tester);
+      c.state = ConnState.live;
       c.sendUser('go'); // socket is null (no connect) — just flips busy
       await tester.pump();
       expect(find.byType(CircularProgressIndicator), findsOneWidget);

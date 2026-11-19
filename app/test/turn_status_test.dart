@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vibemobile/core/reconnect.dart';
 import 'package:vibemobile/features/chat/domain/turn_status.dart';
 import 'package:vibemobile/features/chat/presentation/chat_session_controller.dart';
 
@@ -36,6 +37,7 @@ void main() {
 
   test('status frames drive busy + turn; a reattach idle frame unsticks busy', () {
     final c = controller();
+    c.state = ConnState.live;
     c.sendUser('hi');
     expect(c.busy, true);
     expect(c.turn, isNotNull, reason: 'optimistic local turn before the first frame');
