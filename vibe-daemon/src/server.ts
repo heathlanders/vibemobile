@@ -13,6 +13,7 @@ import { startContinuer } from "./limit.js";
 import { purgeInternalTranscriptRows } from "./discover.js";
 import { recoverMergeQueue } from "./merge-queue.js";
 import { stopDaemon } from "./shutdown.js";
+import { startMaintenance } from "./maintenance.js";
 
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.PORT ?? 8787);
@@ -38,6 +39,7 @@ startUsageNudger(db); // plan window resetting with capacity unused → phone pu
 startScheduler(db, registry); // scheduled prompts (proposal 44)
 startContinuer(db, registry); // continue sessions after the usage limit resets (proposal 67)
 startHookSocket(db, registry); // CLI-session pushes via a Claude Code hook (ADR 0014)
+startMaintenance(db); // nightly event prune, vacuum, backup to VIBE_BACKUP_DIR (proposal 69 R7)
 console.log(`[vibe-daemon] listening http://${HOST}:${PORT} (localhost only)`);
 
 // systemd stop / Ctrl-C: close sockets 1012 and the DB cleanly; force out after 10 s.
