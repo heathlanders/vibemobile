@@ -32,6 +32,7 @@ import '../../sessions/domain/session.dart';
 import '../../sessions/presentation/model_picker.dart';
 import '../../terminal/presentation/terminal_screen.dart';
 import '../data/attachment_api.dart';
+import '../data/draft_store.dart';
 import '../data/fork_api.dart';
 import '../data/project_tree_api.dart';
 import '../data/transcript_cache.dart';
@@ -142,6 +143,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   late final _input = PasteTextController(_pastes);
   late final _inputFocus = FocusNode(onKeyEvent: _onComposerKey);
 
+  // Draft persistence (proposal 70 C5): saved half a second after typing stops and on
+  // leave; the paste tokens are expanded so the stored text is what would be sent.
+  Timer? _draftTimer;
+  void _onDraftChange() {
+    _draftTimer?.cancel();
+    _draftTimer = Timer(const Duration(milliseconds: 500), _saveDraft);
+  }
+
+  void _saveDraft() => unawaited(DraftStore.save(widget.session.id, _pastes.expand(_input.text)));
+
   /// Desktop: Enter sends, Shift+Enter inserts a newline. Phones keep the
   /// keyboard's own send action.
   KeyEventResult _onComposerKey(FocusNode _, KeyEvent e) {
@@ -248,7 +259,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   @override
   void initState() {
     super.initState();
-    if (widget.initialDraft != null) _input.text = widget.initialDraft!;
+    if (widget.initialDraft != null) {
+      _input.text = widget.initialDraft!;
+    } else {
+      // Restore the unsent text from last time (proposal 70 C5) unless the user already typed.
+      DraftStore.load(widget.session.id).then((t) {
+        if (mounted && t != null && _input.text.isEmpty) _input.text = t;
+      });
+    }
+    _input.addListener(_onDraftChange);
     WidgetsBinding.instance.addObserver(this);
     _attention = ref.read(sessionAttentionProvider.notifier);
     _attachments = AttachmentApi(dioFor(widget.creds));
@@ -1013,6 +1032,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     _controller.removeListener(_onChange);
     if (widget.controller == null) _pool.release(widget.session.id, _onAuthFailed);
     _input.removeListener(_onInput);
+    _input.removeListener(_onDraftChange);
+    _draftTimer?.cancel();
+    _saveDraft(); // leaving the chat: keep what's in the box (an accepted send left it empty)
     _input.dispose();
     _inputFocus.dispose();
     _scroll.dispose();
@@ -2195,8 +2217,9 @@ class _Composer extends StatelessWidget {
                   minLines: 1,
                   maxLines: 5,
                   // Desktop: Enter is caught by the composer's FocusNode (send);
-                  // newline here lets Shift+Enter insert a line break.
-                  textInputAction: isMobile ? TextInputAction.send : TextInputAction.newline,
+                  // newline here lets Shift+Enter insert a line break. Phone: the
+                  // keyboard's Enter is a newline; sending is the button (proposal 70 C6).
+                  textInputAction: TextInputAction.newline,
                   onSubmitted: (_) => onSend(),
                   decoration: const InputDecoration(
                     hintText: 'Message Claude…',
