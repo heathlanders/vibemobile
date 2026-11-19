@@ -213,7 +213,7 @@ proposal's *What shipped* when merged.
 **App polish and client security ([70](docs/proposals/70-app-resilience.md), [71](docs/proposals/71-client-security.md)).**
 - [x] 70 C5 + C6: draft persistence; newline on phone
 - [x] 70 C9: bad frame skipped, not thrown
-- [ ] 70 C7: memoize + throttle streaming rebuilds (measure before/after)
+- [x] 70 C7: memoize + throttle streaming rebuilds (measure before/after)
 - [ ] 70 C8: desktop minimize keeps sockets (repro first)
 - [ ] 70 C10 + C11: readable errors, Retry now, full tool output
 - [ ] 71 S1: signed update manifest (two-release rollout); `reviewer` pass

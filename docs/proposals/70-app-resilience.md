@@ -108,3 +108,12 @@ works without it.
   frames skipped, later frames apply; non-JSON and array frames on a real socket leave it live
   with no reconnect; both red on old code). A frame that throws halfway may leave that one
   frame's partial change in place.
+- **C7** (2026-11-19). The controller coalesces `delta`/`thinking_delta` notifications to ~30 Hz
+  (one 33 ms timer); every other frame notifies at once and bumps `revision`. The chat screen
+  keeps `groupToolRuns` + `galleryFromMessages` (the latter regex-scans every finished reply)
+  keyed on `(messages.length, revision)`, so a streaming bubble no longer re-derives the whole
+  transcript. Measured with a throwaway widget probe (real `ChatScreen`, 2,000 messages, 300
+  deltas, one 16 ms frame each, debug test runner, 3 runs each): **14.2 s → 8.8 s** (−38%).
+  Not measured with the DevTools frame chart on a phone. Test: `chat_stream_throttle_test.dart`
+  (300 deltas → ≤ 4 notifications, text complete; red on old code: 300). One older test now pumps
+  50 ms for a delta to show.
