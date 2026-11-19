@@ -358,6 +358,8 @@ function migrate(db: DB): void {
   if (!has("pairing_codes", "issued_by")) db.exec("ALTER TABLE pairing_codes ADD COLUMN issued_by TEXT");
   // The audit-log viewer (GET /events) pages by ts descending.
   db.exec("CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts)");
+  // Every attach, search and tool-result lookup filters messages by session (proposal 69 R8).
+  db.exec("CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, ts)");
 }
 
 export function openDb(file = process.env.VIBE_DB ?? "vibe.db"): DB {

@@ -102,3 +102,17 @@ Order = value per hour. One PR per step.
   new instance; old code hangs waiting for the close). Gap: a loop that *ends cleanly* while input
   is still open is not handled. The real SDK only ends when input closes, but the test fakes end
   after one turn, so covering it means reworking the shared fake.
+- **R8 + R7** (2026-11-19). R8: `idx_messages_session ON messages(session_id, ts)`; attach,
+  search and the tool-result `LIKE` lookups now scan one session's rows. The `tool_use_id` column
+  is deferred: with the index the LIKE runs over a few hundred rows, not the table. R7:
+  `maintenance.ts`, nightly at 03:30 local: delete `events` older than 90 days and `projects.scan`
+  older than 7; `VACUUM` after ≥ 50k deleted rows; `db.backup()` to `VIBE_BACKUP_DIR` (unset → no
+  backup) as `vibe-YYYY-MM-DD.db`, written to `.tmp` and renamed on success, mode 600, dir
+  created 700, newest 7 kept. Changed from this proposal after the `reviewer` pass:
+  `permission.auto_allow` keeps the full 90 days (it is the only record of what ran with no human
+  approving it; 7 days was backwards for forensics). Measured on a copy of the live DB: index
+  build 27 ms; first run pruned 50,275 events, vacuumed, 0.66 s, 136 MB → 35 MB (before the
+  auto_allow change, so the real first run prunes less). Tests: `maintenance.test.ts` (index used
+  per `EXPLAIN QUERY PLAN`; per-kind retention; backup valid + 600 + keep 7 + only our files;
+  failed backup leaves the same-day file; 50k-row prune on a real WAL file vacuums). Untested:
+  the 03:30 scheduling. Ops: set `VIBE_BACKUP_DIR` (PLAN line).
