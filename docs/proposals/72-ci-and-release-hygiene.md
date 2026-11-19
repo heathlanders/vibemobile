@@ -56,3 +56,13 @@ About 1,150 test cases exist and none run on a pull request. Facts gathered 2026
   changing behaviour. `src/spike-*.ts` is excluded until R12 moves the spikes out. Box note:
   npm runs with `NODE_ENV=production` here, so a plain `npm install` prunes dev types; use
   `npm install --include=dev` to typecheck locally.
+- **Q4** (2026-11-19). `release.sh` bumps `pubspec.yaml`, builds the APK, and only then commits,
+  tags and pushes; a failed APK build restores `pubspec.yaml` and exits with nothing committed or
+  tagged. A failed or missing Windows run prints the exact `git push --delete origin vX && git tag
+  -d vX` (nothing is published at that point). `release.sh --rollback x.y.z` repoints
+  `latest.json` at the retained files for x.y.z, with the build number read from tag vx.y.z.
+  Clients only move to a higher build, so a rollback stops a bad build spreading but does not
+  downgrade phones that already have it. Test: `scripts/release-test.sh` (scratch clone, local
+  bare origin, `FLUTTER=/bin/false`): old script pushed the tag, new one leaves none; rollback
+  writes the right version/build/sha. Runs in CI as `release-script`. A `--skip-apk` release still
+  tags before the Windows build, as before.
