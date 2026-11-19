@@ -68,6 +68,7 @@ import 'markdown_text.dart';
 import 'mcp_sheet.dart';
 import 'mode_widgets.dart';
 import 'rewind_sheet.dart';
+import '../../../core/errors.dart';
 
 /// A Claude chat for one session: streamed replies, tool-approval prompts, and
 /// the same reconnect resilience as the terminal. Close = DELETE /sessions/:id.
@@ -786,7 +787,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         Navigator.of(context).pushReplacement(sharedAxisRoute(ChatScreen(creds: widget.creds, session: s)));
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     }
   }
 
@@ -1260,7 +1261,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                 ),
                 child: _controller.state == ConnState.live
                     ? const SizedBox(width: double.infinity)
-                    : _Banner(key: ValueKey(_controller.state), state: _controller.state),
+                    : _Banner(key: ValueKey(_controller.state), state: _controller.state, onRetry: _controller.retryNow),
               ),
               if (_controller.external != null) _ExternalBanner(run: _controller.external!),
               if (_controller.limitWaiting) _LimitBanner(resetsAt: _controller.limitResetsAt, continueAt: _controller.limitContinueAt),
@@ -1609,6 +1610,24 @@ class _Bubble extends StatelessWidget {
                   ),
                   child: Text(shown, style: const TextStyle(fontFamily: AppTheme.monoFontFamily, fontSize: 12)),
                 ),
+                // The list keeps the first 2,000 chars; the rest is one tap away (proposal 70 C11).
+                if (result.length > 2000)
+                  TextButton(
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: Text(message.toolName ?? 'Tool output'),
+                        content: SizedBox(
+                          width: double.maxFinite,
+                          child: SingleChildScrollView(
+                            child: SelectableText(result, style: const TextStyle(fontFamily: AppTheme.monoFontFamily, fontSize: 12)),
+                          ),
+                        ),
+                        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close'))],
+                      ),
+                    ),
+                    child: const Text('Show full output'),
+                  ),
               ],
             ),
           ),
@@ -2293,8 +2312,11 @@ class _PendingThumb extends StatelessWidget {
 }
 
 class _Banner extends StatelessWidget {
-  const _Banner({super.key, required this.state});
+  const _Banner({super.key, required this.state, this.onRetry});
   final ConnState state;
+
+  /// Shown as "Retry now" while reconnecting (proposal 70 C10).
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -2315,6 +2337,8 @@ class _Banner extends StatelessWidget {
         if (spin) const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)),
         if (spin) const SizedBox(width: 8),
         Text(text),
+        if (state == ConnState.reconnecting && onRetry != null)
+          TextButton(onPressed: onRetry, child: const Text('Retry now')),
       ]),
     );
   }

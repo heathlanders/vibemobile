@@ -4,6 +4,7 @@ import '../../../core/spacing.dart';
 import '../data/model_prefs.dart';
 import '../data/session_api.dart';
 import '../domain/session.dart';
+import '../../../core/errors.dart';
 
 /// Result of [chooseModel]: the picked id, or null for the server default.
 typedef ModelChoice = ({String? id, String? label});
@@ -16,7 +17,7 @@ Future<ModelChoice?> chooseModel(BuildContext context, SessionApi api, {String t
   try {
     models = await api.models();
   } catch (e) {
-    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
     return null;
   }
   if (models.length <= 1 && (models.isEmpty || models.first.id == 'default')) return (id: null, label: null);

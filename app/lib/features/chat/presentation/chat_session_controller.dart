@@ -619,6 +619,14 @@ class ChatSessionController extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  /// "Retry now" on the reconnect banner (proposal 70 C10): skip the backoff wait.
+  void retryNow() {
+    if (state != ConnState.reconnecting || _disposed || _stopped || _paused) return;
+    _retry?.cancel();
+    _attempt = 0;
+    _connect();
+  }
+
   void _fail() {
     _stopped = true;
     _set(ConnState.authFailed);

@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../data/session_api.dart';
 import '../domain/session.dart';
+import '../../../core/errors.dart';
 
 // Per-session actions shared by the phone's project screen (long-press sheet)
 // and the desktop workspace sidebar (right-click menu). Each returns true when
 // the server state changed, so the caller refetches; errors surface as a snack.
 
 void _error(BuildContext context, Object e) {
-  if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+  if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
 }
 
 Future<String?> _textDialog(BuildContext context, {required String title, required String initial, required String hint}) {

@@ -57,4 +57,26 @@ void main() {
     expect(sent.queued, isFalse);
     expect(c.messages.map((m) => m.text), ['earlier', 'while down']);
   });
+
+  test('retryNow skips the backoff wait (proposal 70 C10)', () async {
+    var accepts = 0;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    server.listen((req) async {
+      accepts++;
+      final ws = await WebSocketTransformer.upgrade(req);
+      ws.add(jsonEncode({'t': 'history', 'messages': []}));
+      if (accepts == 1) await ws.close(1001); // first attach drops at once → retry with backoff
+    });
+    addTearDown(() => server.close(force: true));
+    final c = ChatSessionController(url: Uri.parse('ws://127.0.0.1:${server.port}/session/s1'), token: 't');
+    addTearDown(c.dispose);
+    c.start();
+    await until(() => c.state == ConnState.reconnecting);
+    // The first backoff is 0.4–0.6 s; retryNow must not wait for it.
+    final sw = Stopwatch()..start();
+    c.retryNow();
+    await until(() => c.state == ConnState.live);
+    expect(sw.elapsedMilliseconds, lessThan(300), reason: 'no backoff wait');
+    expect(accepts, 2);
+  });
 }

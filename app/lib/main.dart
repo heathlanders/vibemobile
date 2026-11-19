@@ -24,6 +24,7 @@ import 'features/pairing/presentation/pairing_screen.dart';
 import 'features/phone/presentation/phone_shell.dart';
 import 'features/sessions/data/session_api.dart';
 import 'features/update/presentation/update_banner.dart';
+import 'core/errors.dart';
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -188,7 +189,16 @@ class _Root extends ConsumerWidget {
         );
       },
       loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (e, _) => Scaffold(body: Center(child: Text('$e'))),
+      // Reading saved creds failed: say so plainly and offer another try (proposal 70 C10).
+      error: (e, _) => Scaffold(
+        body: Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text(friendlyError(e)),
+            const SizedBox(height: 12),
+            FilledButton(onPressed: () => ref.invalidate(credsProvider), child: const Text('Retry')),
+          ]),
+        ),
+      ),
     );
   }
 }

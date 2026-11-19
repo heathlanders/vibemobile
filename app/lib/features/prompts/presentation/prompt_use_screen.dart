@@ -14,6 +14,7 @@ import '../../sessions/domain/task_profile.dart';
 import '../../sessions/presentation/model_picker.dart';
 import '../data/prompt_api.dart';
 import '../domain/prompt.dart';
+import '../../../core/errors.dart';
 
 /// Use a prompt: fill its `{{vars}}`, choose a target (an existing live Claude
 /// session or a new one in a project), then open the chat with the filled text
@@ -120,7 +121,7 @@ class _PromptUseScreenState extends State<PromptUseScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _sending = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyError(e))));
       }
     }
   }
