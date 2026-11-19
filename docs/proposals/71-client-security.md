@@ -54,3 +54,13 @@ Findings read in code on 2026-11-19 (v1.0.40). Paths under `app/` unless noted.
   also serves the daemon on a plain-`http` tailnet port; pairing through that URL is now refused
   (existing devices keep working; re-pair with the `https://` address). Tests:
   `pairing_url_test.dart`, plus a screen case in `pairing_screen_test.dart` (red on old code).
+- **S2** (2026-11-19). Manifest: `allowBackup="false"`, `fullBackupContent="false"` and
+  `data_extraction_rules.xml` excluding every domain from cloud backup and device transfer
+  (Android 12+). `TranscriptCache` moved from SharedPreferences to one JSON file per session under
+  the app support dir (`transcripts/<id>.json`, id sanitized, temp + rename); a transcript left
+  in SharedPreferences by an older build moves to its file on first load. Total capped at 20 MB,
+  least recently written first; `delete(id)` runs when a chat is ended from the close X or the
+  session list's Kill (bulk prune relies on the size cap). Best-effort: storage errors mean no
+  cache. Tests: `transcript_cache_test.dart` (file storage, per-file and total caps, delete,
+  migration, id can't escape the dir; red on old code). Not done: no Android build was run for the
+  manifest change (CI doesn't build Android); check `flutter build apk` before release.

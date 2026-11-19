@@ -1020,6 +1020,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     WorktreeKept? kept;
     try {
       kept = await SessionApi(dioFor(widget.creds)).delete(widget.session.id);
+      unawaited(const TranscriptCache().delete(widget.session.id)); // its cached transcript goes too (71 S2)
     } catch (_) {/* idempotent server-side */}
     if (!mounted) return;
     if (kept != null) {

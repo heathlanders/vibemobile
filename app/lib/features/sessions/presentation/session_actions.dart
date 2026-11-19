@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../data/session_api.dart';
 import '../domain/session.dart';
 import '../../../core/errors.dart';
+import '../../chat/data/transcript_cache.dart';
 
 // Per-session actions shared by the phone's project screen (long-press sheet)
 // and the desktop workspace sidebar (right-click menu). Each returns true when
@@ -93,6 +96,7 @@ Future<bool> killSession(BuildContext context, SessionApi api, Session s) async 
   if (confirmed != true) return false;
   try {
     final kept = await api.delete(s.id);
+    unawaited(const TranscriptCache().delete(s.id)); // its cached transcript goes too (71 S2)
     if (kept != null && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(kept.message), duration: const Duration(seconds: 8)));
     }

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -41,10 +43,15 @@ void main() {
   });
 
   group('TranscriptCache', () {
-    setUp(() => SharedPreferences.setMockInitialValues({}));
+    late Directory dir;
+    setUp(() {
+      SharedPreferences.setMockInitialValues({});
+      dir = Directory.systemTemp.createTempSync('vibe-m5-');
+    });
+    tearDown(() => dir.deleteSync(recursive: true));
 
     test('save then load returns the messages', () async {
-      const cache = TranscriptCache();
+      final cache = TranscriptCache(dir: () async => dir);
       await cache.save('s1', [
         ChatMessage(role: ChatRole.user, text: 'hi'),
         ChatMessage(role: ChatRole.assistant, text: 'yo'),
@@ -56,7 +63,7 @@ void main() {
     });
 
     test('unknown session loads empty', () async {
-      expect(await const TranscriptCache().load('nope'), isEmpty);
+      expect(await TranscriptCache(dir: () async => dir).load('nope'), isEmpty);
     });
   });
 }
