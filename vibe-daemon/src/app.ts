@@ -6,6 +6,8 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import websocket from "@fastify/websocket";
+import type { IncomingMessage } from "node:http";
+import type { WebSocket } from "ws";
 import type { DB } from "./db.js";
 import { authenticate, createPairingCode, pairDevice, logEvent, PAIR_TTL_MIN, type Device } from "./auth.js";
 import { scanProjects, upsertProjects, projectRoots } from "./scanner.js";
@@ -82,6 +84,21 @@ export async function buildApp(
   await app.register(rateLimit, { global: false }); // opt-in per route
   await app.register(websocket);
 
+  // WS auth happens once, at upgrade, so revoking a device must also close its
+  // open sockets (proposal 68 A1). Every WS route upgrades through this server.
+  const deviceOf = new WeakMap<IncomingMessage, string>();
+  const socketsOf = new Map<string, Set<WebSocket>>();
+  app.websocketServer.on("connection", (socket: WebSocket, raw: IncomingMessage) => {
+    const id = deviceOf.get(raw);
+    if (!id) return;
+    const set = socketsOf.get(id) ?? new Set();
+    socketsOf.set(id, set.add(socket));
+    socket.on("close", () => {
+      set.delete(socket);
+      if (!set.size && socketsOf.get(id) === set) socketsOf.delete(id);
+    });
+  });
+
   // Auth gate: reject anything outside PUBLIC without a valid device token.
   app.addHook("onRequest", async (req, reply) => {
     if (PUBLIC.has(req.routeOptions.url ?? "")) return;
@@ -93,6 +110,7 @@ export async function buildApp(
       return reply.code(401).send({ error: "unauthorized" });
     }
     (req as { device?: Device }).device = device;
+    deviceOf.set(req.raw, device.id);
   });
 
   app.get("/health", async () => ({ ok: true }));
@@ -190,6 +208,11 @@ export async function buildApp(
     // Codes a lost device minted die with it, or they'd outlive the revoke (ADR 0029).
     db.prepare("UPDATE pairing_codes SET used = 1 WHERE issued_by = ? AND used = 0").run(id);
     logEvent(db, "device.revoked", id, `by ${(req as { device?: Device }).device?.id ?? "unknown"}`);
+    // Stop handling its frames now (ws still emits messages while closing), then close.
+    for (const socket of socketsOf.get(id) ?? []) {
+      socket.removeAllListeners("message");
+      socket.close(4401, "device revoked");
+    }
     return reply.code(204).send();
   });
 

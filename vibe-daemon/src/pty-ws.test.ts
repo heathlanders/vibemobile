@@ -152,6 +152,103 @@ test("PTY WS: malformed resize frames are ignored, socket keeps working", { skip
   await sleep(200);
 });
 
+test("PTY WS: revoking the device closes its socket 4401 and drops later frames", { skip: !tmuxInstalled }, async (t) => {
+  const db = openDb(":memory:");
+  const tmux = realTmux(SOCK + "e");
+  await tmux.ensureGlobals();
+  const app = await buildApp(db, tmux);
+  await app.listen({ host: "127.0.0.1", port: 0 });
+  const port = (app.server.address() as AddressInfo).port;
+  t.after(async () => {
+    await app.close();
+    await execFileP("tmux", ["-L", SOCK + "e", "kill-server"]).catch(() => {});
+  });
+
+  const pair = async () =>
+    (await app.inject({ method: "POST", url: "/pair", payload: { code: createPairingCode(db), device_name: "t" } })).json();
+  const x = await pair();
+  const owner = await pair();
+  db.prepare("INSERT INTO projects (id, path, name, type) VALUES (?,?,?,?)").run("p_ok", REPO_DIR, "vibemobile", "unknown");
+  const id = (
+    await app.inject({
+      method: "POST",
+      url: "/sessions",
+      headers: { authorization: `Bearer ${x.token}` },
+      payload: { project_id: "p_ok", kind: "terminal" },
+    })
+  ).json().id;
+
+  const a = attach(port, id, x.token);
+  await a.opened;
+  for (let i = 0; i < 40 && !a.out.text; i++) {
+    a.ws.send(frame(OP_RESIZE, JSON.stringify({ cols: 100, rows: 30 })));
+    await sleep(100);
+  }
+  const closed = new Promise<number>((resolve) => a.ws.on("close", (c) => resolve(c)));
+
+  const del = await app.inject({
+    method: "DELETE",
+    url: `/devices/${x.device_id}`,
+    headers: { authorization: `Bearer ${owner.token}` },
+  });
+  assert.equal(del.statusCode, 204);
+  if (a.ws.readyState === a.ws.OPEN) a.ws.send(frame(OP_INPUT, "echo REVOKED_$((6*7))\n"));
+  assert.equal(await closed, 4401, "revoked device's socket closes 4401");
+  await sleep(400);
+  const { stdout } = await execFileP("tmux", ["-L", SOCK + "e", "capture-pane", "-p", "-t", `vibe-${id}`]);
+  assert.doesNotMatch(stdout, /REVOKED_42/, "frame after revoke never reached the shell");
+});
+
+test("PTY WS: revoke while the attach is still awaiting tmux never attaches", { skip: !tmuxInstalled }, async (t) => {
+  const db = openDb(":memory:");
+  const real = realTmux(SOCK + "f");
+  await real.ensureGlobals();
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  let attaches = 0;
+  const tmux = {
+    ...real,
+    detachOthers: async (id: string) => {
+      await gate;
+      return real.detachOthers(id);
+    },
+    attach: (id: string, c: number, r: number) => {
+      attaches++;
+      return real.attach(id, c, r);
+    },
+  };
+  const app = await buildApp(db, tmux);
+  await app.listen({ host: "127.0.0.1", port: 0 });
+  const port = (app.server.address() as AddressInfo).port;
+  t.after(async () => {
+    await app.close();
+    await execFileP("tmux", ["-L", SOCK + "f", "kill-server"]).catch(() => {});
+  });
+
+  const pair = async () =>
+    (await app.inject({ method: "POST", url: "/pair", payload: { code: createPairingCode(db), device_name: "t" } })).json();
+  const x = await pair();
+  const owner = await pair();
+  db.prepare("INSERT INTO projects (id, path, name, type) VALUES (?,?,?,?)").run("p_ok", REPO_DIR, "vibemobile", "unknown");
+  const id = (
+    await app.inject({
+      method: "POST",
+      url: "/sessions",
+      headers: { authorization: `Bearer ${x.token}` },
+      payload: { project_id: "p_ok", kind: "terminal" },
+    })
+  ).json().id;
+
+  const a = attach(port, id, x.token);
+  await a.opened; // upgraded; the route is parked in detachOthers
+  const closed = new Promise<number>((resolve) => a.ws.on("close", (c) => resolve(c)));
+  await app.inject({ method: "DELETE", url: `/devices/${x.device_id}`, headers: { authorization: `Bearer ${owner.token}` } });
+  assert.equal(await closed, 4401);
+  release();
+  await sleep(300);
+  assert.equal(attaches, 0, "a socket revoked mid-attach is never attached to tmux");
+});
+
 test("PTY WS: attaching a nonexistent session closes 4404", { skip: !tmuxInstalled }, async (t) => {
   const db = openDb(":memory:");
   const tmux = realTmux(SOCK + "b");

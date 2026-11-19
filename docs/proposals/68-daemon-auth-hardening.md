@@ -62,4 +62,13 @@ Work in this order; each step is one small PR with its tests.
 
 ## What shipped
 
-(fill in per step)
+- **A1** (2026-11-19). `app.ts` records each authenticated upgrade's device and keeps a
+  `Map<deviceId, Set<WebSocket>>` (filled from `websocketServer` `connection`, cleaned on close),
+  so `/pty`, `/session` and `/tty` are all covered in one place. `DELETE /devices/:id` removes the
+  sockets' `message` listeners, then closes them `4401`. `reviewer` pass found two races, both
+  fixed: `/pty` and `/tty` add listeners after `await`s, so a revoke during the await was followed
+  by a fresh attach (and a leaked tmux client + heartbeat); the chat route's queued `ready.then`
+  frames could still run on a closing socket. All three now bail when the socket is no longer
+  `OPEN`. Tests: `pty-ws.test.ts` (4401 + racing frame never reaches the shell, checked by
+  removing the listener drop: 3/3 fail; revoke mid-attach never attaches), `session-ws.test.ts`
+  (chat socket 4401). `docs/security.md` row 4 updated.
