@@ -56,7 +56,7 @@ Or just read `/var/crash/<dir>/dmesg.*` for the last kernel messages before deat
 
 ## RAM note
 
-crashkernel reserves ~256MB on this 15GB box. Combined with the vibe-daemon
-limits (`deploy/vibe-daemon.service`: MemoryMax=3G) and session caps, headroom
+crashkernel reserves ~256MB on this 32GB box. Combined with the vibe-daemon
+limits (`deploy/vibe-daemon.service`: MemoryHigh=8G, MemoryMax=18G) and session caps, headroom
 stays adequate for the docker/postgres stacks. If RAM gets tight, lower the
 crashkernel reservation in GRUB (`crashkernel=192M`) before dropping the daemon caps.

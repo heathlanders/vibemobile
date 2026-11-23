@@ -200,7 +200,8 @@ proposal's *What shipped* when merged.
 - [ ] 69 R7 ops (owner): set `VIBE_BACKUP_DIR` to a dedicated dir under the backups disk in the live unit
 - [x] 69 R6: audit log records command text; `security.md` corrected
 - [x] 69 R4: spike — does tmux survive a daemon restart? fix if not
-- [ ] 69 R11: commit the real unit with memory caps; Node 20+ (do last in a session)
+- [ ] 69 R11: commit the real unit with memory caps; Node 20+ (do last in a session).
+  Unit + CI on Node 20 committed 2026-11-23; left: live `/health` + chat + terminal after the deploy restart.
 - [x] 69 R10: backpressure on PTY and chat sockets
 - [x] 69 R9: Bash ask-list in Auto mode; `reviewer` pass
 - [x] 69 R12: spikes out of `src/`
@@ -242,11 +243,11 @@ editor phases (proposal 60) wait until then.
   vs. needing an API key. (Verify in M0 — changes cost model.)
 - **TUI parity gaps:** some interactive Claude features (slash-command pickers)
   render differently in headless; map them in chat UI or fall back to terminal tab.
-- **Node 18 → 20:** still open (ops). The systemd unit runs `/usr/bin/node`
-  v18.20.8, while a terminal's nvm default is v20. The latest SDK runs fine on 18.
-  The real hazard is running `npm install` in `vibe-daemon` from a v20 shell:
-  native modules get rebuilt for the wrong ABI and the daemon fails on restart.
-  Server health → Diagnostics flags the drift (proposal 29).
+- ~~**Node 18 → 20:**~~ Done (proposal 69 R11): the user unit
+  (`vibe-daemon/deploy/vibe-daemon.service`) runs nvm Node 20 via `VIBE_NODE`; CI
+  tests on 20. Hazard stays: run `npm install` / `npm rebuild better-sqlite3 node-pty`
+  under that same Node, or native modules get the wrong ABI and the daemon fails on
+  restart. Server health → Diagnostics flags the drift (proposal 29).
 - ~~**tmux dependency:** decide tmux-backed PTY (survives restart) vs. raw node-pty.~~
   Decided: tmux-backed — see `docs/decisions/0004-tmux-backed-pty.md`.
 - **Multi-device sync:** if you use 2 phones, sessions are server-side so it's fine,

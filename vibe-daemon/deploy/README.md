@@ -4,34 +4,29 @@ The daemon binds `127.0.0.1:8787` only; `tailscale serve` is the sole ingress
 (PLAN §5 / `docs/security.md` #1 / ADR 0005). These steps are operator actions —
 nothing here is run from application code.
 
-## systemd (system-scoped, runs as `boss`)
+## systemd (user unit — what the box runs)
+
+The unit assumes the repo at `~/vibemobile` and Node 20 at the nvm path in
+`VIBE_NODE`; set `VIBE_NODE=$(nvm which 20)` in `~/.config/vibe-daemon.env` if
+yours differs. Install native modules under that same Node:
 
 ```bash
-sudo cp deploy/vibe-daemon.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now vibe-daemon
-systemctl status vibe-daemon
-journalctl -u vibe-daemon -f      # logs
-```
+cd vibe-daemon
+PATH="$(dirname "$VIBE_NODE"):$PATH" npm install --include=dev   # dev: tsx + types
+PATH="$(dirname "$VIBE_NODE"):$PATH" npm rebuild better-sqlite3 node-pty   # after a Node switch
 
-Validate the unit before installing:
-
-```bash
-systemd-analyze verify deploy/vibe-daemon.service
-```
-
-`ExecStart=/usr/bin/npm start` runs `tsx src/server.ts` (no build step). The DB
-lands at `WorkingDirectory/vibe.db` unless `VIBE_DB` is set.
-
-### User-scoped alternative
-
-To run under `systemctl --user` instead (no root), drop the `User=` line, place
-the unit in `~/.config/systemd/user/`, and keep the service alive past logout:
-
-```bash
-loginctl enable-linger boss
+systemd-analyze --user verify deploy/vibe-daemon.service
+cp deploy/vibe-daemon.service ~/.config/systemd/user/
+loginctl enable-linger "$USER"        # keep running past logout
+systemctl --user daemon-reload
 systemctl --user enable --now vibe-daemon
+journalctl --user -u vibe-daemon -f   # logs
 ```
+
+`ExecStart` runs `tsx src/server.ts` straight from the checkout (no build step),
+so whatever branch is checked out there is what the next restart deploys. The
+DB lands at `WorkingDirectory/vibe.db` unless `VIBE_DB` is set. A restart ends
+any Claude session running under the daemon, including one driving the deploy.
 
 ## Ingress — `tailscale serve` (ADR 0005)
 

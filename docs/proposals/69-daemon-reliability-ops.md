@@ -156,3 +156,12 @@ Order = value per hour. One PR per step.
   point at `../src/`, the `npm run spike:*` scripts follow, and the `tsconfig` exclude is gone
   (`src/` has no spikes left). Path references updated in 19 docs; ADRs left as written (immutable).
   Spikes stay outside typecheck and tests; their imports were checked to resolve.
+- **R11** (2026-11-23). `deploy/vibe-daemon.service` is now the user unit the box runs: nvm
+  Node 20 via `VIBE_NODE` (`ExecStart=/usr/bin/env ${VIBE_NODE} …`, since systemd 249 does not
+  expand a variable in the executable), MemoryHigh=8G, MemoryMax=18G (owner's choice for the
+  32 GB box), TasksMax=1024, `Restart=always`, `%h` paths, `vibe-daemon.env` optional (the box adds one machine-local env file). CI's daemon
+  job moved to Node 20; `deploy/README.md` and PLAN §7 updated. Checked: `systemd-analyze --user
+  verify` passes; a copy of the unit with only `ExecStart` swapped printed Node v20.20.2, the
+  checkout as cwd, `NODE_ENV=production`, the env files loaded, and loaded `better-sqlite3`.
+  The installed unit still spells the same values as literal paths; swap it for this file at
+  a later restart. Live `/health` + chat + terminal check: after the deploy restart.
