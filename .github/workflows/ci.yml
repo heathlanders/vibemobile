@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '18' # what the box's unit runs today (proposal 69 R11 moves it to 20)
+          node-version: '20' # what the box's unit runs (deploy/vibe-daemon.service, proposal 69 R11)
           cache: npm
           cache-dependency-path: vibe-daemon/package-lock.json
       - run: sudo apt-get update && sudo apt-get install -y tmux # PTY tests attach real tmux

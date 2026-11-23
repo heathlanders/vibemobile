@@ -1,38 +1,42 @@
-# vibe-daemon systemd unit (PLAN §2B, §5). Runs the daemon as `boss`, bound to
-# localhost only — `tailscale serve` is the sole ingress (ADR 0005). Install by hand;
-# see deploy/README.md. Do not auto-enable from application code.
+# vibe-daemon systemd USER unit (PLAN §2B, §5; proposal 69 R11). This is the unit the box
+# really runs: install to ~/.config/systemd/user/ (see deploy/README.md). Bound to localhost
+# only — `tailscale serve` is the sole ingress (ADR 0005). Do not auto-enable from app code.
 
 [Unit]
-Description=VibeMobile daemon (Claude Code + PTY sessions)
+Description=VibeMobile daemon (Claude Code session manager)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=boss
-WorkingDirectory=/home/user/vibemobile/vibe-daemon
-Environment=PORT=8787
-# Override the project roots the scanner walks (comma-separated) if needed:
-# Environment=VIBE_PROJECT_ROOTS=/home/user
-# Model picker (ADR 0007): the list AUTO-UPDATES from the live Anthropic Models API
-# in the default (no-gateway) mode — new releases appear with no edit here. Set
-# VIBE_GATEWAY_MODELS only to override a label/provider or add a gateway/custom
-# model (JSON [{id,label,provider}]; same id overrides, new id is appended). In
-# gateway mode (VIBE_GATEWAY_URL set) this list is authoritative and drives routing.
-# Environment=VIBE_GATEWAY_MODELS=[{"id":"claude-opus-4-7","label":"Opus 4.7","provider":"anthropic"}]
-ExecStart=/usr/bin/npm start
-Restart=on-failure
+# Assumes the repo is cloned at ~/vibemobile; edit if yours lives elsewhere.
+WorkingDirectory=%h/vibemobile/vibe-daemon
+# Runs TypeScript through tsx straight from the checkout (no build step), so the branch checked
+# out there is what a restart deploys. VIBE_NODE = absolute path of a Node 20 binary
+# (`nvm which 20`). npm install / rebuild must run under this same Node, or the native modules
+# (better-sqlite3, node-pty) get the wrong ABI and the daemon fails on restart (PLAN §7).
+# Override VIBE_NODE in vibe-daemon.env (EnvironmentFile wins over Environment=).
+Environment=VIBE_NODE=%h/.nvm/versions/node/v20.20.2/bin/node
+# systemd does not expand variables in the executable itself, hence /usr/bin/env.
+ExecStart=/usr/bin/env ${VIBE_NODE} node_modules/tsx/dist/cli.mjs src/server.ts
+Restart=always
 RestartSec=2
 
-# Resource guardrails (32GB → actually 15GB host, shared with docker/postgres).
-# Cap the whole daemon cgroup (node + spawned claude SDK subprocesses, ≈hundreds
-# of MB each). MemoryHigh throttles before MemoryMax hard-kills. OOMScoreAdjust
-# >0 makes the daemon the kernel's preferred OOM victim over docker/postgres.
-# Tune via the session caps (VIBE_MAX_CLAUDE/VIBE_MAX_TERMINAL) too — see sessions.ts.
-MemoryHigh=2G
-MemoryMax=3G
-TasksMax=256
+# Resource guardrails (32 GB host, shared with docker/postgres). The cgroup covers node plus
+# every spawned claude SDK subprocess and terminal. MemoryHigh throttles before MemoryMax
+# hard-kills. OOMScoreAdjust >0 makes the daemon the kernel's preferred OOM victim.
+# Tune with the session caps too (VIBE_MAX_CLAUDE / VIBE_MAX_TERMINAL, sessions.ts).
+MemoryHigh=8G
+MemoryMax=18G
+TasksMax=1024
 OOMScoreAdjust=500
 
+# Auth comes from ~/.claude credentials (Claude Code subscription); no API key env needed.
+Environment=NODE_ENV=production
+# Machine-local env files (e.g. cache locations, ADR 0025) go as extra EnvironmentFile= lines
+# above this one, so vibe-daemon.env still overrides them.
+# PORT (default 8787), VIBE_NODE, VIBE_PROJECT_ROOTS, model picker list (ADR 0007), etc.
+EnvironmentFile=-%h/.config/vibe-daemon.env
+
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
